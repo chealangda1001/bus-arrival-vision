@@ -57,6 +57,36 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        
+        /* Dashboard-specific colors */
+        dashboard: {
+          DEFAULT: "hsl(var(--dashboard-bg))",
+          surface: "hsl(var(--dashboard-surface))",
+          border: "hsl(var(--dashboard-border))",
+        },
+        
+        /* Status system colors */
+        status: {
+          "on-time": "hsl(var(--status-on-time))",
+          delayed: "hsl(var(--status-delayed))",
+          boarding: "hsl(var(--status-boarding))",
+          departed: "hsl(var(--status-departed))",
+          cancelled: "hsl(var(--status-cancelled))",
+        },
+        
+        /* Text hierarchy */
+        text: {
+          display: "hsl(var(--text-display))",
+          primary: "hsl(var(--text-primary))",
+          secondary: "hsl(var(--text-secondary))",
+          muted: "hsl(var(--text-muted))",
+        },
+        
+        /* Announcement colors */
+        announcement: {
+          bg: "hsl(var(--announcement-bg))",
+          text: "hsl(var(--announcement-text))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
