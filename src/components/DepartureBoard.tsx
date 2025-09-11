@@ -13,6 +13,7 @@ interface Departure {
   gate: string;
   estimatedTime?: string;
   passengerCount?: number;
+  fleetImage?: string;
 }
 
 interface DepartureBoardProps {
@@ -32,9 +33,21 @@ export default function DepartureBoard({ departures, currentTime, onAnnouncement
     if (diff <= 0) return "Now";
     
     const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
     
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    // Show detailed countdown only when within 15 minutes
+    if (minutes <= 15) {
+      const seconds = Math.floor((diff % 60000) / 1000);
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    // Show simplified format for longer waits
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return remainingMinutes > 0 ? `in ${hours}h ${remainingMinutes}mn` : `in ${hours}h`;
+    }
+    
+    return `in ${minutes}mn`;
   };
 
   // Check for announcements (10 minutes before departure)
@@ -100,8 +113,21 @@ export default function DepartureBoard({ departures, currentTime, onAnnouncement
           return (
             <Card key={departure.id} className="bg-dashboard-surface border-dashboard-border p-6">
               <div className="grid grid-cols-12 gap-4 items-center">
+                {/* Fleet Picture */}
+                <div className="col-span-1">
+                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                    {departure.fleetImage ? (
+                      <img src={departure.fleetImage} alt="Bus" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-8 h-6 bg-primary/20 rounded-sm flex items-center justify-center">
+                        <div className="text-xs text-primary font-bold">BUS</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Route & Destination */}
-                <div className="col-span-4">
+                <div className="col-span-3">
                   <div className="flex items-center gap-3">
                     <div className="bg-primary text-primary-foreground px-3 py-1 rounded-lg font-bold text-lg">
                       {departure.routeNumber}
