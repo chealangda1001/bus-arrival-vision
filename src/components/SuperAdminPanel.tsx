@@ -18,7 +18,9 @@ const SuperAdminPanel = () => {
     slug: "",
     logo_url: "",
     admin_username: "",
-    admin_password: ""
+    admin_password: "",
+    branch_name: "",
+    branch_location: ""
   });
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,10 +64,10 @@ const SuperAdminPanel = () => {
   const handleCreateOperator = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newOperator.name || !newOperator.slug || !newOperator.admin_username || !newOperator.admin_password) {
+    if (!newOperator.name || !newOperator.slug || !newOperator.admin_username || !newOperator.admin_password || !newOperator.branch_name) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields (including first branch name)",
         variant: "destructive",
       });
       return;
@@ -77,7 +79,9 @@ const SuperAdminPanel = () => {
       slug: "",
       logo_url: "",
       admin_username: "",
-      admin_password: ""
+      admin_password: "",
+      branch_name: "",
+      branch_location: ""
     });
     setShowCreateForm(false);
   };
@@ -163,6 +167,25 @@ const SuperAdminPanel = () => {
                     onChange={(e) => setNewOperator(prev => ({ ...prev, admin_password: e.target.value }))}
                     placeholder="Enter password"
                     required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="branch-name">First Branch Name *</Label>
+                  <Input
+                    id="branch-name"
+                    value={newOperator.branch_name}
+                    onChange={(e) => setNewOperator(prev => ({ ...prev, branch_name: e.target.value }))}
+                    placeholder="Main Terminal"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="branch-location">Branch Location</Label>
+                  <Input
+                    id="branch-location"
+                    value={newOperator.branch_location}
+                    onChange={(e) => setNewOperator(prev => ({ ...prev, branch_location: e.target.value }))}
+                    placeholder="City Center, Main St."
                   />
                 </div>
               </div>

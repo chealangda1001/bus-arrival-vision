@@ -43,6 +43,8 @@ export const useOperators = () => {
     logo_url?: string;
     admin_username: string;
     admin_password: string;
+    branch_name: string;
+    branch_location?: string;
   }) => {
     try {
       // First create the operator
@@ -71,13 +73,14 @@ export const useOperators = () => {
       if (adminError) throw adminError;
 
       // Create default branch
+      const branchSlug = operatorData.branch_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const { error: branchError } = await supabase
         .from('branches')
         .insert([{
           operator_id: operator.id,
-          name: 'Main Terminal',
-          slug: 'main-terminal',
-          location: 'Main Location',
+          name: operatorData.branch_name,
+          slug: branchSlug,
+          location: operatorData.branch_location,
           is_default: true
         }]);
 
@@ -85,7 +88,7 @@ export const useOperators = () => {
 
       toast({
         title: "Success",
-        description: "Operator created successfully",
+        description: `Operator "${operatorData.name}" created with first branch "${operatorData.branch_name}"`,
       });
       
       fetchOperators();
