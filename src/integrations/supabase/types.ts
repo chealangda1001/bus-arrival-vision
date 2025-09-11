@@ -175,7 +175,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      set_user_context: {
+        Args: { username: string }
+        Returns: undefined
+      }
     }
     Enums: {
       fleet_type: "VIP Van" | "Bus" | "Sleeping Bus"
