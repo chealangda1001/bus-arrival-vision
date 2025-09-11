@@ -4,15 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOperators } from "@/hooks/useOperators";
 import { useBranches } from "@/hooks/useBranches";
+import { useDepartures } from "@/hooks/useDepartures";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Building2, Trash2, Edit2, MapPin } from "lucide-react";
+import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus } from "lucide-react";
 
 const SuperAdminPanel = () => {
   const { operators, loading, createOperator, refetch } = useOperators();
   const { branches, createBranch, refetch: refetchBranches } = useBranches();
+  const { departures, addDeparture, updateDepartureStatus, deleteDeparture, refetch: refetchDepartures } = useDepartures();
   const { toast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -20,6 +23,9 @@ const SuperAdminPanel = () => {
   const [managingBranches, setManagingBranches] = useState<string | null>(null);
   const [editingBranch, setEditingBranch] = useState<string | null>(null);
   const [showAddBranch, setShowAddBranch] = useState<string | null>(null);
+  const [managingDepartures, setManagingDepartures] = useState<string | null>(null);
+  const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
+  const [showAddDeparture, setShowAddDeparture] = useState<string | null>(null);
   const [newOperator, setNewOperator] = useState({
     name: "",
     slug: "",
@@ -45,6 +51,24 @@ const SuperAdminPanel = () => {
     slug: "",
     location: "",
     is_default: false
+  });
+  const [newDeparture, setNewDeparture] = useState({
+    destination: "",
+    plate_number: "",
+    departure_time: "",
+    status: "on-time" as const,
+    estimated_time: "",
+    fleet_type: "Bus" as const,
+    fleet_image_url: ""
+  });
+  const [editDeparture, setEditDeparture] = useState({
+    destination: "",
+    plate_number: "",
+    departure_time: "",
+    status: "on-time" as const,
+    estimated_time: "",
+    fleet_type: "Bus" as const,
+    fleet_image_url: ""
   });
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -294,6 +318,180 @@ const SuperAdminPanel = () => {
 
   const getBranchesForOperator = (operatorId: string) => {
     return branches.filter(branch => branch.operator_id === operatorId);
+  };
+
+  const getDeparturesForBranch = (branchId: string) => {
+    return departures.filter(departure => departure.branch_id === branchId);
+  };
+
+  // Departure Management Functions
+  const handleAddDeparture = (branchId: string) => {
+    setShowAddDeparture(branchId);
+    setNewDeparture({
+      destination: "",
+      plate_number: "",
+      departure_time: "",
+      status: "on-time",
+      estimated_time: "",
+      fleet_type: "Bus",
+      fleet_image_url: ""
+    });
+  };
+
+  const handleCreateDeparture = async (e: React.FormEvent, branchId: string) => {
+    e.preventDefault();
+    
+    if (!newDeparture.destination || !newDeparture.plate_number || !newDeparture.departure_time) {
+      toast({
+        title: "Error",
+        description: "Please fill in required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await addDeparture({
+      branch_id: branchId,
+      destination: newDeparture.destination,
+      plate_number: newDeparture.plate_number,
+      departure_time: newDeparture.departure_time,
+      status: newDeparture.status,
+      estimated_time: newDeparture.estimated_time || undefined,
+      fleet_type: newDeparture.fleet_type,
+      fleet_image_url: newDeparture.fleet_image_url || undefined
+    });
+    
+    setShowAddDeparture(null);
+    setNewDeparture({
+      destination: "",
+      plate_number: "",
+      departure_time: "",
+      status: "on-time",
+      estimated_time: "",
+      fleet_type: "Bus",
+      fleet_image_url: ""
+    });
+    refetchDepartures();
+  };
+
+  const handleEditDeparture = (departure: any) => {
+    setEditingDeparture(departure.id);
+    setEditDeparture({
+      destination: departure.destination,
+      plate_number: departure.plate_number,
+      departure_time: departure.departure_time,
+      status: departure.status,
+      estimated_time: departure.estimated_time || "",
+      fleet_type: departure.fleet_type,
+      fleet_image_url: departure.fleet_image_url || ""
+    });
+  };
+
+  const handleUpdateDeparture = async (e: React.FormEvent, departureId: string) => {
+    e.preventDefault();
+    
+    if (!editDeparture.destination || !editDeparture.plate_number || !editDeparture.departure_time) {
+      toast({
+        title: "Error",
+        description: "Please fill in required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('departures')
+        .update({
+          destination: editDeparture.destination,
+          plate_number: editDeparture.plate_number,
+          departure_time: editDeparture.departure_time,
+          status: editDeparture.status,
+          estimated_time: editDeparture.estimated_time || null,
+          fleet_type: editDeparture.fleet_type,
+          fleet_image_url: editDeparture.fleet_image_url || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', departureId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Departure updated successfully",
+      });
+      
+      setEditingDeparture(null);
+      setEditDeparture({
+        destination: "",
+        plate_number: "",
+        departure_time: "",
+        status: "on-time",
+        estimated_time: "",
+        fleet_type: "Bus",
+        fleet_image_url: ""
+      });
+      refetchDepartures();
+    } catch (error) {
+      console.error('Update departure error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update departure",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDeparture = async (departureId: string, destination: string) => {
+    if (!confirm(`Are you sure you want to delete departure to "${destination}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('departures')
+        .delete()
+        .eq('id', departureId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Departure to "${destination}" deleted successfully`,
+      });
+      
+      refetchDepartures();
+    } catch (error) {
+      console.error('Delete departure error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete departure",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelDepartureEdit = () => {
+    setEditingDeparture(null);
+    setEditDeparture({
+      destination: "",
+      plate_number: "",
+      departure_time: "",
+      status: "on-time",
+      estimated_time: "",
+      fleet_type: "Bus",
+      fleet_image_url: ""
+    });
+    setShowAddDeparture(null);
+    setNewDeparture({
+      destination: "",
+      plate_number: "",
+      departure_time: "",
+      status: "on-time",
+      estimated_time: "",
+      fleet_type: "Bus",
+      fleet_image_url: ""
+    });
   };
 
   const generateSlug = (name: string) => {
@@ -681,35 +879,290 @@ const SuperAdminPanel = () => {
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex space-x-2">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      onClick={() => handleEditBranch(branch)}
-                                    >
-                                      <Edit2 className="w-3 h-3" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      onClick={() => handleDeleteBranch(branch.id, branch.name)}
-                                      className="text-red-500 hover:text-red-600"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                  </div>
+                                   <div className="flex space-x-2">
+                                     <Button 
+                                       variant="ghost" 
+                                       size="sm"
+                                       onClick={() => setManagingDepartures(managingDepartures === branch.id ? null : branch.id)}
+                                     >
+                                       <Bus className="w-3 h-3 mr-1" />
+                                       Departures
+                                     </Button>
+                                     <Button 
+                                       variant="ghost" 
+                                       size="sm"
+                                       onClick={() => handleEditBranch(branch)}
+                                     >
+                                       <Edit2 className="w-3 h-3" />
+                                     </Button>
+                                     <Button 
+                                       variant="ghost" 
+                                       size="sm"
+                                       onClick={() => handleDeleteBranch(branch.id, branch.name)}
+                                       className="text-red-500 hover:text-red-600"
+                                     >
+                                       <Trash2 className="w-3 h-3" />
+                                     </Button>
+                                   </div>
                                 </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
-                        
-                        {getBranchesForOperator(operator.id).length === 0 && (
-                          <div className="text-center py-4 text-text-display/60">
-                            No branches found for this operator
-                          </div>
-                        )}
-                      </div>
+                               )}
+
+                               {/* Departure Management Section */}
+                               {managingDepartures === branch.id && (
+                                 <div className="mt-4 pt-4 border-t border-border">
+                                   <div className="flex items-center justify-between mb-4">
+                                     <h5 className="font-medium text-text-display">Manage Departures</h5>
+                                     <Button 
+                                       variant="outline" 
+                                       size="sm"
+                                       onClick={() => handleAddDeparture(branch.id)}
+                                     >
+                                       <Plus className="w-3 h-3 mr-1" />
+                                       Add Departure
+                                     </Button>
+                                   </div>
+
+                                   {/* Add Departure Form */}
+                                   {showAddDeparture === branch.id && (
+                                     <Card className="mb-4 bg-accent/10">
+                                       <CardContent className="p-4">
+                                         <form onSubmit={(e) => handleCreateDeparture(e, branch.id)} className="space-y-4">
+                                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                             <div>
+                                               <Label htmlFor="new-departure-destination">Destination *</Label>
+                                               <Input
+                                                 id="new-departure-destination"
+                                                 value={newDeparture.destination}
+                                                 onChange={(e) => setNewDeparture(prev => ({ ...prev, destination: e.target.value }))}
+                                                 placeholder="Phnom Penh"
+                                                 required
+                                               />
+                                             </div>
+                                             <div>
+                                               <Label htmlFor="new-departure-plate">Plate Number *</Label>
+                                               <Input
+                                                 id="new-departure-plate"
+                                                 value={newDeparture.plate_number}
+                                                 onChange={(e) => setNewDeparture(prev => ({ ...prev, plate_number: e.target.value }))}
+                                                 placeholder="1A-2345"
+                                                 required
+                                               />
+                                             </div>
+                                             <div>
+                                               <Label htmlFor="new-departure-time">Departure Time *</Label>
+                                               <Input
+                                                 id="new-departure-time"
+                                                 type="time"
+                                                 value={newDeparture.departure_time}
+                                                 onChange={(e) => setNewDeparture(prev => ({ ...prev, departure_time: e.target.value }))}
+                                                 required
+                                               />
+                                             </div>
+                                             <div>
+                                               <Label htmlFor="new-departure-fleet">Fleet Type *</Label>
+                                               <Select 
+                                                 value={newDeparture.fleet_type} 
+                                                 onValueChange={(value) => setNewDeparture(prev => ({ ...prev, fleet_type: value as any }))}
+                                               >
+                                                 <SelectTrigger>
+                                                   <SelectValue placeholder="Select fleet type" />
+                                                 </SelectTrigger>
+                                                 <SelectContent>
+                                                   <SelectItem value="VIP Van">VIP Van</SelectItem>
+                                                   <SelectItem value="Bus">Bus</SelectItem>
+                                                   <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                                                 </SelectContent>
+                                               </Select>
+                                             </div>
+                                             <div>
+                                               <Label htmlFor="new-departure-status">Status</Label>
+                                               <Select 
+                                                 value={newDeparture.status} 
+                                                 onValueChange={(value) => setNewDeparture(prev => ({ ...prev, status: value as any }))}
+                                               >
+                                                 <SelectTrigger>
+                                                   <SelectValue placeholder="Select status" />
+                                                 </SelectTrigger>
+                                                 <SelectContent>
+                                                   <SelectItem value="on-time">On Time</SelectItem>
+                                                   <SelectItem value="delayed">Delayed</SelectItem>
+                                                   <SelectItem value="boarding">Boarding</SelectItem>
+                                                   <SelectItem value="departed">Departed</SelectItem>
+                                                 </SelectContent>
+                                               </Select>
+                                             </div>
+                                             <div>
+                                               <Label htmlFor="new-departure-estimated">Estimated Time</Label>
+                                               <Input
+                                                 id="new-departure-estimated"
+                                                 type="time"
+                                                 value={newDeparture.estimated_time}
+                                                 onChange={(e) => setNewDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
+                                               />
+                                             </div>
+                                           </div>
+                                           <div className="flex space-x-2">
+                                             <Button type="submit" size="sm">Create Departure</Button>
+                                             <Button type="button" variant="outline" size="sm" onClick={cancelDepartureEdit}>
+                                               Cancel
+                                             </Button>
+                                           </div>
+                                         </form>
+                                       </CardContent>
+                                     </Card>
+                                   )}
+
+                                   {/* Departures List */}
+                                   <div className="space-y-2">
+                                     {getDeparturesForBranch(branch.id).map((departure) => (
+                                       <Card key={departure.id} className="bg-background/30">
+                                         <CardContent className="p-3">
+                                           {editingDeparture === departure.id ? (
+                                             <form onSubmit={(e) => handleUpdateDeparture(e, departure.id)} className="space-y-4">
+                                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-destination">Destination *</Label>
+                                                   <Input
+                                                     id="edit-departure-destination"
+                                                     value={editDeparture.destination}
+                                                     onChange={(e) => setEditDeparture(prev => ({ ...prev, destination: e.target.value }))}
+                                                     required
+                                                   />
+                                                 </div>
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-plate">Plate Number *</Label>
+                                                   <Input
+                                                     id="edit-departure-plate"
+                                                     value={editDeparture.plate_number}
+                                                     onChange={(e) => setEditDeparture(prev => ({ ...prev, plate_number: e.target.value }))}
+                                                     required
+                                                   />
+                                                 </div>
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-time">Departure Time *</Label>
+                                                   <Input
+                                                     id="edit-departure-time"
+                                                     type="time"
+                                                     value={editDeparture.departure_time}
+                                                     onChange={(e) => setEditDeparture(prev => ({ ...prev, departure_time: e.target.value }))}
+                                                     required
+                                                   />
+                                                 </div>
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-fleet">Fleet Type</Label>
+                                                   <Select 
+                                                     value={editDeparture.fleet_type} 
+                                                     onValueChange={(value) => setEditDeparture(prev => ({ ...prev, fleet_type: value as any }))}
+                                                   >
+                                                     <SelectTrigger>
+                                                       <SelectValue />
+                                                     </SelectTrigger>
+                                                     <SelectContent>
+                                                       <SelectItem value="VIP Van">VIP Van</SelectItem>
+                                                       <SelectItem value="Bus">Bus</SelectItem>
+                                                       <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                                                     </SelectContent>
+                                                   </Select>
+                                                 </div>
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-status">Status</Label>
+                                                   <Select 
+                                                     value={editDeparture.status} 
+                                                     onValueChange={(value) => setEditDeparture(prev => ({ ...prev, status: value as any }))}
+                                                   >
+                                                     <SelectTrigger>
+                                                       <SelectValue />
+                                                     </SelectTrigger>
+                                                     <SelectContent>
+                                                       <SelectItem value="on-time">On Time</SelectItem>
+                                                       <SelectItem value="delayed">Delayed</SelectItem>
+                                                       <SelectItem value="boarding">Boarding</SelectItem>
+                                                       <SelectItem value="departed">Departed</SelectItem>
+                                                     </SelectContent>
+                                                   </Select>
+                                                 </div>
+                                                 <div>
+                                                   <Label htmlFor="edit-departure-estimated">Estimated Time</Label>
+                                                   <Input
+                                                     id="edit-departure-estimated"
+                                                     type="time"
+                                                     value={editDeparture.estimated_time}
+                                                     onChange={(e) => setEditDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
+                                                   />
+                                                 </div>
+                                               </div>
+                                               <div className="flex space-x-2">
+                                                 <Button type="submit" size="sm">Save Changes</Button>
+                                                 <Button type="button" variant="outline" size="sm" onClick={cancelDepartureEdit}>
+                                                   Cancel
+                                                 </Button>
+                                               </div>
+                                             </form>
+                                           ) : (
+                                             <div className="flex items-center justify-between">
+                                               <div className="flex items-center space-x-3">
+                                                 <Clock className="w-4 h-4 text-primary" />
+                                                 <div>
+                                                   <div className="font-medium text-text-display">
+                                                     {departure.destination} - {departure.departure_time}
+                                                   </div>
+                                                   <div className="text-sm text-text-display/60">
+                                                     {departure.plate_number} | {departure.fleet_type} | 
+                                                     <span className={`ml-1 ${
+                                                       departure.status === 'on-time' ? 'text-green-600' :
+                                                       departure.status === 'delayed' ? 'text-red-600' :
+                                                       departure.status === 'boarding' ? 'text-blue-600' :
+                                                       'text-gray-600'
+                                                     }`}>
+                                                       {departure.status.toUpperCase()}
+                                                     </span>
+                                                     {departure.estimated_time && (
+                                                       <span className="ml-1">| Est: {departure.estimated_time}</span>
+                                                     )}
+                                                   </div>
+                                                 </div>
+                                               </div>
+                                               <div className="flex space-x-2">
+                                                 <Button 
+                                                   variant="ghost" 
+                                                   size="sm"
+                                                   onClick={() => handleEditDeparture(departure)}
+                                                 >
+                                                   <Edit2 className="w-3 h-3" />
+                                                 </Button>
+                                                 <Button 
+                                                   variant="ghost" 
+                                                   size="sm"
+                                                   onClick={() => handleDeleteDeparture(departure.id, departure.destination)}
+                                                   className="text-red-500 hover:text-red-600"
+                                                 >
+                                                   <Trash2 className="w-3 h-3" />
+                                                 </Button>
+                                               </div>
+                                             </div>
+                                           )}
+                                         </CardContent>
+                                       </Card>
+                                     ))}
+                                     
+                                     {getDeparturesForBranch(branch.id).length === 0 && (
+                                       <div className="text-center py-4 text-text-display/60">
+                                         No departures found for this branch
+                                       </div>
+                                     )}
+                                   </div>
+                                 </div>
+                               )}
+                             </CardContent>
+                           </Card>
+                         ))}
+                         
+                         {getBranchesForOperator(operator.id).length === 0 && (
+                           <div className="text-center py-4 text-text-display/60">
+                             No branches found for this operator
+                           </div>
+                         )}
+                       </div>
                     </div>
                   )}
                 </Card>
