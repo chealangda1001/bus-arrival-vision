@@ -2,15 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeX } from "lucide-react";
-
-interface Departure {
-  id: string;
-  routeNumber: string;
-  destination: string;
-  plateNumber: string;
-  departureTime: string;
-  gate: string;
-}
+import { type Departure } from "@/hooks/useDepartures";
 
 interface AnnouncementSystemProps {
   departure?: Departure;
@@ -36,11 +28,11 @@ export default function AnnouncementSystem({ departure, onComplete }: Announceme
 
   const generateAnnouncement = (template: string, departure: Departure) => {
     return template
-      .replace('{route}', departure.routeNumber)
+      .replace('{route}', departure.route_number)
       .replace('{destination}', departure.destination)
-      .replace('{time}', departure.departureTime)
+      .replace('{time}', departure.departure_time)
       .replace('{gate}', departure.gate)
-      .replace('{plate}', departure.plateNumber);
+      .replace('{plate}', departure.plate_number);
   };
 
   const playAnnouncement = async () => {
@@ -100,7 +92,7 @@ export default function AnnouncementSystem({ departure, onComplete }: Announceme
       
       <div className="space-y-3">
         <div className="text-sm opacity-90">
-          Route {departure.routeNumber} • {departure.destination} • Gate {departure.gate}
+          Route {departure.route_number} • {departure.destination} • Gate {departure.gate}
         </div>
         
         {isPlaying && (

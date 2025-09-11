@@ -1,243 +1,319 @@
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Settings } from "lucide-react";
+import { Trash2, Upload } from "lucide-react";
+import { useDepartures, type Departure } from "@/hooks/useDepartures";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-interface Departure {
-  id: string;
-  routeNumber: string;
-  destination: string;
-  plateNumber: string;
-  departureTime: string;
-  status: "on-time" | "delayed" | "boarding" | "departed";
-  gate: string;
-  estimatedTime?: string;
-  passengerCount?: number;
-}
-
-interface AdminPanelProps {
-  departures: Departure[];
-  onUpdateDepartures: (departures: Departure[]) => void;
-}
-
-export default function AdminPanel({ departures, onUpdateDepartures }: AdminPanelProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [newDeparture, setNewDeparture] = useState<Partial<Departure>>({
-    routeNumber: '',
-    destination: '',
-    plateNumber: '',
-    departureTime: '',
-    status: 'on-time',
-    gate: '',
-  });
-  
+const AdminPanel = () => {
+  const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture } = useDepartures();
   const { toast } = useToast();
+  const [editMode, setEditMode] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [newDeparture, setNewDeparture] = useState({
+    route_number: "",
+    destination: "",
+    plate_number: "",
+    departure_time: "",
+    status: "on-time" as const,
+    gate: "",
+    estimated_time: "",
+    passenger_count: 0,
+    fleet_image_url: ""
+  });
 
-  const handleAddDeparture = () => {
-    if (!newDeparture.routeNumber || !newDeparture.destination || !newDeparture.departureTime) {
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('fleet-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('fleet-images')
+        .getPublicUrl(filePath);
+
+      setNewDeparture(prev => ({
+        ...prev,
+        fleet_image_url: publicUrl
+      }));
+
+      toast({
+        title: "Success",
+        description: "Fleet image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddDeparture = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newDeparture.route_number || !newDeparture.destination || !newDeparture.departure_time || !newDeparture.gate) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    const departure: Departure = {
-      id: Date.now().toString(),
-      routeNumber: newDeparture.routeNumber!,
-      destination: newDeparture.destination!,
-      plateNumber: newDeparture.plateNumber!,
-      departureTime: newDeparture.departureTime!,
-      status: newDeparture.status as any || 'on-time',
-      gate: newDeparture.gate!,
-      estimatedTime: newDeparture.estimatedTime,
-      passengerCount: newDeparture.passengerCount,
-    };
-
-    onUpdateDepartures([...departures, departure]);
+    await addDeparture(newDeparture);
+    
+    // Reset form
     setNewDeparture({
-      routeNumber: '',
-      destination: '',
-      plateNumber: '',
-      departureTime: '',
-      status: 'on-time',
-      gate: '',
-    });
-    
-    toast({
-      title: "Success",
-      description: "Departure added successfully"
+      route_number: "",
+      destination: "",
+      plate_number: "",
+      departure_time: "",
+      status: "on-time",
+      gate: "",
+      estimated_time: "",
+      passenger_count: 0,
+      fleet_image_url: ""
     });
   };
 
-  const handleUpdateStatus = (id: string, status: Departure['status'], estimatedTime?: string) => {
-    const updated = departures.map(dep => 
-      dep.id === id 
-        ? { ...dep, status, estimatedTime: estimatedTime || dep.estimatedTime }
-        : dep
-    );
-    onUpdateDepartures(updated);
+  const handleUpdateStatus = async (id: string, status: Departure['status']) => {
+    const estimatedTime = status === "delayed" ? 
+      prompt("Enter estimated departure time (HH:MM):") : undefined;
     
-    toast({
-      title: "Status Updated",
-      description: `Departure status changed to ${status}`
-    });
-  };
-
-  const handleDeleteDeparture = (id: string) => {
-    const updated = departures.filter(dep => dep.id !== id);
-    onUpdateDepartures(updated);
-    
-    toast({
-      title: "Deleted",
-      description: "Departure removed successfully"
-    });
+    await updateDepartureStatus(id, status, estimatedTime || undefined);
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "on-time": return "bg-status-on-time";
-      case "delayed": return "bg-status-delayed";
-      case "boarding": return "bg-status-boarding";
-      case "departed": return "bg-status-departed";
-      default: return "bg-status-on-time";
+      case "on-time": return "bg-green-100 text-green-800";
+      case "delayed": return "bg-red-100 text-red-800";  
+      case "boarding": return "bg-blue-100 text-blue-800";
+      case "departed": return "bg-gray-100 text-gray-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
+  if (loading) {
+    return <div className="flex justify-center p-8">Loading...</div>;
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold dashboard-title text-text-display">
-          Admin Panel
-        </h2>
-        <Button onClick={() => setIsEditing(!isEditing)}>
-          <Settings className="w-4 h-4 mr-2" />
-          {isEditing ? 'View Mode' : 'Edit Mode'}
+      {/* Toggle Edit Mode */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Departure Management</h2>
+        <Button 
+          onClick={() => setEditMode(!editMode)}
+          variant={editMode ? "destructive" : "default"}
+        >
+          {editMode ? "Exit Edit Mode" : "Edit Mode"}
         </Button>
       </div>
 
-      {isEditing && (
-        <Card className="bg-dashboard-surface border-dashboard-border p-6">
-          <h3 className="text-lg font-semibold text-text-primary mb-4">Add New Departure</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="route">Route Number*</Label>
-              <Input
-                id="route"
-                value={newDeparture.routeNumber}
-                onChange={(e) => setNewDeparture({...newDeparture, routeNumber: e.target.value})}
-                placeholder="e.g., 101"
-              />
-            </div>
-            <div>
-              <Label htmlFor="destination">Destination*</Label>
-              <Input
-                id="destination"
-                value={newDeparture.destination}
-                onChange={(e) => setNewDeparture({...newDeparture, destination: e.target.value})}
-                placeholder="e.g., Airport Terminal"
-              />
-            </div>
-            <div>
-              <Label htmlFor="plate">Plate Number*</Label>
-              <Input
-                id="plate"
-                value={newDeparture.plateNumber}
-                onChange={(e) => setNewDeparture({...newDeparture, plateNumber: e.target.value})}
-                placeholder="e.g., PP-1234"
-              />
-            </div>
-            <div>
-              <Label htmlFor="time">Departure Time*</Label>
-              <Input
-                id="time"
-                type="time"
-                value={newDeparture.departureTime}
-                onChange={(e) => setNewDeparture({...newDeparture, departureTime: e.target.value})}
-              />
-            </div>
-            <div>
-              <Label htmlFor="gate">Gate*</Label>
-              <Input
-                id="gate"
-                value={newDeparture.gate}
-                onChange={(e) => setNewDeparture({...newDeparture, gate: e.target.value})}
-                placeholder="e.g., A1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="passengers">Passenger Count</Label>
-              <Input
-                id="passengers"
-                type="number"
-                value={newDeparture.passengerCount || ''}
-                onChange={(e) => setNewDeparture({...newDeparture, passengerCount: parseInt(e.target.value) || undefined})}
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-          <Button onClick={handleAddDeparture} className="mt-4">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Departure
-          </Button>
-        </Card>
-      )}
+      {/* Add New Departure Form */}
+      {editMode && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Add New Departure</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAddDeparture} className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="routeNumber">Route Number *</Label>
+                <Input
+                  id="routeNumber"
+                  value={newDeparture.route_number}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, route_number: e.target.value}))}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="destination">Destination *</Label>
+                <Input
+                  id="destination"
+                  value={newDeparture.destination}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, destination: e.target.value}))}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="plateNumber">Plate Number</Label>
+                <Input
+                  id="plateNumber"
+                  value={newDeparture.plate_number}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="departureTime">Departure Time *</Label>
+                <Input
+                  id="departureTime"
+                  type="time"
+                  value={newDeparture.departure_time}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, departure_time: e.target.value}))}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="gate">Gate *</Label>
+                <Input
+                  id="gate"
+                  value={newDeparture.gate}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, gate: e.target.value}))}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="passengerCount">Passenger Count</Label>
+                <Input
+                  id="passengerCount"
+                  type="number"
+                  min="0"
+                  value={newDeparture.passenger_count}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, passenger_count: parseInt(e.target.value) || 0}))}
+                />
+              </div>
 
-      <Card className="bg-dashboard-surface border-dashboard-border p-6">
-        <h3 className="text-lg font-semibold text-text-primary mb-4">Current Departures</h3>
-        <div className="space-y-3">
-          {departures.map((departure) => (
-            <div key={departure.id} className="flex items-center justify-between p-4 bg-dashboard-bg rounded-lg border border-dashboard-border">
-              <div className="flex items-center gap-4">
-                <Badge className="bg-primary text-primary-foreground">
-                  {departure.routeNumber}
-                </Badge>
-                <div>
-                  <p className="font-semibold text-text-primary">{departure.destination}</p>
-                  <p className="text-sm text-text-secondary">
-                    {departure.departureTime} • Gate {departure.gate} • {departure.plateNumber}
-                  </p>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="fleetImage">Fleet Image</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="fleetImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                    }}
+                    disabled={uploading}
+                  />
+                  {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
+                  {newDeparture.fleet_image_url && (
+                    <img 
+                      src={newDeparture.fleet_image_url} 
+                      alt="Fleet preview" 
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  )}
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
-                <Select
-                  value={departure.status}
-                  onValueChange={(status) => handleUpdateStatus(departure.id, status as any)}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="on-time">On Time</SelectItem>
-                    <SelectItem value="delayed">Delayed</SelectItem>
-                    <SelectItem value="boarding">Boarding</SelectItem>
-                    <SelectItem value="departed">Departed</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                {isEditing && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteDeparture(departure.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+              <div className="col-span-2">
+                <Button type="submit" disabled={uploading}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Add Departure
+                </Button>
               </div>
-            </div>
-          ))}
-        </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Current Departures */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Departures ({departures.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {departures.map((departure) => (
+              <div
+                key={departure.id}
+                className="border border-gray-200 rounded-lg p-4 flex items-center justify-between"
+              >
+                <div className="flex items-center space-x-4">
+                  {departure.fleet_image_url && (
+                    <img
+                      src={departure.fleet_image_url}
+                      alt="Fleet"
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  )}
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-lg">Route {departure.route_number}</span>
+                      <Badge className={getStatusColor(departure.status)}>
+                        {departure.status}
+                      </Badge>
+                    </div>
+                    <p className="text-gray-600">{departure.destination}</p>
+                    <p className="text-sm text-gray-500">
+                      Gate {departure.gate} • {departure.departure_time}
+                      {departure.estimated_time && departure.status === "delayed" && 
+                        ` → ${departure.estimated_time}`
+                      }
+                      {departure.passenger_count && 
+                        ` • ${departure.passenger_count} passengers`
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  {editMode && (
+                    <>
+                      <Select 
+                        value={departure.status} 
+                        onValueChange={(value: Departure['status']) => 
+                          handleUpdateStatus(departure.id, value)
+                        }
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on-time">On Time</SelectItem>
+                          <SelectItem value="delayed">Delayed</SelectItem>
+                          <SelectItem value="boarding">Boarding</SelectItem>
+                          <SelectItem value="departed">Departed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteDeparture(departure.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {departures.length === 0 && (
+              <p className="text-center text-gray-500 py-8">
+                No departures found. {editMode ? "Add some departures to get started." : ""}
+              </p>
+            )}
+          </div>
+        </CardContent>
       </Card>
     </div>
   );
-}
+};
+
+export default AdminPanel;

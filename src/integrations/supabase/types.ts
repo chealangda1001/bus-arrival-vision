@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      departures: {
+        Row: {
+          created_at: string
+          departure_time: string
+          destination: string
+          estimated_time: string | null
+          fleet_image_url: string | null
+          gate: string
+          id: string
+          passenger_count: number | null
+          plate_number: string
+          route_number: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          departure_time: string
+          destination: string
+          estimated_time?: string | null
+          fleet_image_url?: string | null
+          gate: string
+          id?: string
+          passenger_count?: number | null
+          plate_number: string
+          route_number: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          departure_time?: string
+          destination?: string
+          estimated_time?: string | null
+          fleet_image_url?: string | null
+          gate?: string
+          id?: string
+          passenger_count?: number | null
+          plate_number?: string
+          route_number?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
