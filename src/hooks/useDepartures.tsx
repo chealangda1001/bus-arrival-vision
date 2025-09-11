@@ -4,33 +4,41 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface Departure {
   id: string;
-  route_number: string;
+  branch_id: string;
   destination: string;
   plate_number: string;
   departure_time: string;
   status: "on-time" | "delayed" | "boarding" | "departed";
-  gate: string;
   estimated_time?: string;
-  passenger_count?: number;
+  fleet_type: "VIP Van" | "Bus" | "Sleeping Bus";
   fleet_image_url?: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export const useDepartures = () => {
+export const useDepartures = (branchId?: string) => {
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const fetchDepartures = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('departures')
         .select('*')
         .order('departure_time');
 
+      if (branchId) {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
+      
       setDepartures((data || []).map(item => ({
         ...item,
-        status: item.status as Departure['status']
+        status: item.status as Departure['status'],
+        fleet_type: item.fleet_type as Departure['fleet_type']
       })));
     } catch (error) {
       console.error('Error fetching departures:', error);
@@ -44,7 +52,7 @@ export const useDepartures = () => {
     }
   };
 
-  const addDeparture = async (departure: Omit<Departure, 'id'>) => {
+  const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       const { error } = await supabase
         .from('departures')

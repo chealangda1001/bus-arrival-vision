@@ -1,63 +1,75 @@
-import React, { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Users } from "lucide-react";
+import { Clock, MapPin, Truck } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 
 interface DepartureBoardProps {
   currentTime: string;
+  branchId?: string;
   onAnnouncement?: (departure: Departure) => void;
 }
 
-const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
-  currentTime, 
-  onAnnouncement 
-}) => {
-  const { departures, loading } = useDepartures();
+const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoardProps) => {
+  const { departures, loading } = useDepartures(branchId);
   const [announcedDepartures, setAnnouncedDepartures] = useState<Set<string>>(new Set());
 
-  const calculateCountdown = (departureTime: string) => {
-    const currentDate = new Date();
-    const departure = new Date(`${currentDate.toDateString()} ${departureTime}`);
-    const diff = departure.getTime() - currentDate.getTime();
+  const calculateCountdown = (departureTime: string): string => {
+    const [hours, minutes] = departureTime.split(':').map(Number);
+    const now = new Date();
+    const departureDate = new Date();
+    departureDate.setHours(hours, minutes, 0, 0);
     
-    if (diff <= 0) return "Now";
-    
-    const minutes = Math.floor(diff / 60000);
-    
-    if (minutes <= 15) {
-      const seconds = Math.floor((diff % 60000) / 1000);
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    // If departure time has passed today, assume it's tomorrow
+    if (departureDate <= now) {
+      departureDate.setDate(departureDate.getDate() + 1);
     }
     
-    if (minutes >= 60) {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return remainingMinutes > 0 ? `in ${hours}h ${remainingMinutes}mn` : `in ${hours}h`;
-    }
+    const diff = departureDate.getTime() - now.getTime();
+    const totalMinutes = Math.floor(diff / 60000);
     
-    return `in ${minutes}mn`;
+    if (totalMinutes <= 0) return "Now";
+    if (totalMinutes < 60) return `${totalMinutes}mn`;
+    
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return mins > 0 ? `${hrs}h ${mins}mn` : `${hrs}h`;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
-      case "on-time": return "bg-green-100 text-green-800";
-      case "delayed": return "bg-red-100 text-red-800";  
-      case "boarding": return "bg-blue-100 text-blue-800";
-      case "departed": return "bg-gray-100 text-gray-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "on-time":
+        return "bg-green-500 text-white animate-pulse";
+      case "delayed":
+        return "bg-red-500 text-white animate-bounce";
+      case "boarding":
+        return "bg-blue-500 text-white animate-ping";
+      case "departed":
+        return "bg-gray-500 text-white";
+      default:
+        return "bg-gray-500 text-white";
     }
   };
 
+  const getFleetTypeColor = (fleetType: string) => {
+    switch (fleetType) {
+      case "VIP Van": return "bg-purple-500 text-white";
+      case "Bus": return "bg-blue-500 text-white";
+      case "Sleeping Bus": return "bg-indigo-500 text-white";
+      default: return "bg-gray-500 text-white";
+    }
+  };
+
+  // Check for announcements when time updates
   useEffect(() => {
     if (onAnnouncement) {
       departures.forEach((departure) => {
-        if (announcedDepartures.has(departure.id)) return;
-        
         const countdown = calculateCountdown(departure.departure_time);
-        if (countdown === "10:00" && departure.status !== "departed") {
-          setAnnouncedDepartures(prev => new Set(prev).add(departure.id));
+        const countdownMinutes = parseInt(countdown.replace(/[^\d]/g, ''));
+        
+        if (countdownMinutes === 10 && onAnnouncement && !announcedDepartures.has(departure.id)) {
           onAnnouncement(departure);
+          setAnnouncedDepartures(prev => new Set([...prev, departure.id]));
         }
       });
     }
@@ -70,10 +82,10 @@ const DepartureBoard: React.FC<DepartureBoardProps> = ({
           <h1 className="text-4xl font-bold text-text-display">
             Bus Departures
           </h1>
-          <p className="text-lg text-text-secondary">{currentTime}</p>
+          <p className="text-lg text-text-display/80">{currentTime}</p>
         </div>
         <div className="flex justify-center items-center py-12">
-          <div className="text-xl text-text-secondary">Loading departures...</div>
+          <div className="text-xl text-text-display/60">Loading departures...</div>
         </div>
       </div>
     );
@@ -86,7 +98,7 @@ const DepartureBoard: React.FC<DepartureBoardProps> = ({
         <h1 className="text-4xl font-bold text-text-display">
           Bus Departures
         </h1>
-        <p className="text-lg text-text-secondary">{currentTime}</p>
+        <p className="text-lg text-text-display/80">{currentTime}</p>
       </div>
 
       {/* Departures Grid */}
@@ -98,93 +110,72 @@ const DepartureBoard: React.FC<DepartureBoardProps> = ({
           return (
             <Card 
               key={departure.id} 
-              className={`bg-card-bg transition-all duration-500 animate-fade-in ${
+              className={`bg-card transition-all duration-500 animate-fade-in ${
                 isBoarding 
                   ? "border-2 border-blue-400 shadow-lg animate-pulse" 
-                  : "border-2 border-card-border"
+                  : "border-2 border-border"
               }`}
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <CardContent className="p-6">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   {/* Fleet Picture - 2x bigger */}
-                  <div className="col-span-1">
+                  <div className="col-span-2">
                     <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                       {departure.fleet_image_url ? (
                         <img 
                           src={departure.fleet_image_url} 
-                          alt="Bus" 
+                          alt="Fleet vehicle" 
                           className="w-full h-full object-cover" 
                         />
                       ) : (
                         <div className="w-16 h-12 bg-primary/20 rounded-sm flex items-center justify-center">
-                          <div className="text-sm text-primary font-bold">BUS</div>
+                          <Truck className="w-8 h-8 text-primary" />
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Route & Destination */}
-                  <div className="col-span-3">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary text-primary-foreground px-3 py-1 rounded-lg font-bold text-lg">
-                        {departure.route_number}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-lg text-text-display">
-                          {departure.destination}
-                        </h3>
-                        <p className="text-text-secondary flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          Gate {departure.gate}
-                        </p>
-                      </div>
+                  {/* Destination & Fleet Type */}
+                  <div className="col-span-4">
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-2xl font-bold text-text-display">{departure.destination}</h3>
+                      <Badge className={getStatusColor(departure.status)}>
+                        {departure.status.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <Badge className={getFleetTypeColor(departure.fleet_type)}>
+                        <Truck className="w-4 h-4 mr-1" />
+                        {departure.fleet_type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center space-x-4 text-text-display/80 mt-3">
+                      {departure.plate_number && (
+                        <div className="flex items-center">
+                          <Truck className="w-4 h-4 mr-1" />
+                          <span>{departure.plate_number}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Plate Number */}
-                  <div className="col-span-2">
-                    <p className="text-text-secondary text-sm">Plate Number</p>
-                    <p className="font-mono font-semibold text-text-display">
-                      {departure.plate_number}
-                    </p>
-                  </div>
-
-                  {/* Departure Time */}
-                  <div className="col-span-2">
-                    <p className="text-text-secondary text-sm">Departure</p>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-text-muted" />
-                      <span className="font-semibold text-text-display">
-                        {departure.departure_time}
-                      </span>
-                    </div>
-                    {departure.estimated_time && departure.status === "delayed" && (
-                      <p className="text-xs text-red-600">
-                        Est: {departure.estimated_time}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Countdown */}
-                  <div className="col-span-2">
-                    <p className="text-text-secondary text-sm">Countdown</p>
-                    <div className="font-mono text-xl font-bold text-blue-600">
-                      {countdown}
-                    </div>
-                  </div>
-
-                  {/* Status & Passengers */}
-                  <div className="col-span-2 text-right">
-                    <Badge className={`mb-2 font-semibold px-3 py-1 ${getStatusColor(departure.status)}`}>
-                      {departure.status.toUpperCase()}
-                    </Badge>
-                    {departure.passenger_count && (
-                      <div className="flex items-center justify-end gap-1 text-text-secondary">
-                        <Users className="w-4 h-4" />
-                        <span className="text-sm">{departure.passenger_count}</span>
+                  {/* Departure Time & Countdown */}
+                  <div className="col-span-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Clock className="w-5 h-5 mr-2 text-text-display/60" />
+                        <span className="text-xl font-bold text-text-display">{departure.departure_time}</span>
+                        {departure.estimated_time && departure.status === "delayed" && (
+                          <span className="text-red-500 ml-2">→ {departure.estimated_time}</span>
+                        )}
                       </div>
-                    )}
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-text-display">
+                          {calculateCountdown(departure.departure_time)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -194,7 +185,7 @@ const DepartureBoard: React.FC<DepartureBoardProps> = ({
         
         {departures.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-text-secondary text-xl">No departures scheduled</p>
+            <p className="text-text-display/60 text-xl">No departures scheduled</p>
           </div>
         )}
       </div>

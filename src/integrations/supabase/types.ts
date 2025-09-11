@@ -14,47 +14,158 @@ export type Database = {
   }
   public: {
     Tables: {
+      branches: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean | null
+          location: string | null
+          name: string
+          operator_id: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          location?: string | null
+          name: string
+          operator_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          location?: string | null
+          name?: string
+          operator_id?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departures: {
         Row: {
+          branch_id: string
           created_at: string
           departure_time: string
           destination: string
           estimated_time: string | null
           fleet_image_url: string | null
-          gate: string
+          fleet_type: Database["public"]["Enums"]["fleet_type"]
           id: string
-          passenger_count: number | null
           plate_number: string
-          route_number: string
           status: string
           updated_at: string
         }
         Insert: {
+          branch_id: string
           created_at?: string
           departure_time: string
           destination: string
           estimated_time?: string | null
           fleet_image_url?: string | null
-          gate: string
+          fleet_type: Database["public"]["Enums"]["fleet_type"]
           id?: string
-          passenger_count?: number | null
           plate_number: string
-          route_number: string
           status: string
           updated_at?: string
         }
         Update: {
+          branch_id?: string
           created_at?: string
           departure_time?: string
           destination?: string
           estimated_time?: string | null
           fleet_image_url?: string | null
-          gate?: string
+          fleet_type?: Database["public"]["Enums"]["fleet_type"]
           id?: string
-          passenger_count?: number | null
           plate_number?: string
-          route_number?: string
           status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departures_new_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_admins: {
+        Row: {
+          created_at: string
+          id: string
+          operator_id: string | null
+          password_hash: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          operator_id?: string | null
+          password_hash: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          operator_id?: string | null
+          password_hash?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_admins_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operators: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -67,7 +178,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      fleet_type: "VIP Van" | "Bus" | "Sleeping Bus"
+      user_role: "super_admin" | "operator_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -194,6 +306,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      fleet_type: ["VIP Van", "Bus", "Sleeping Bus"],
+      user_role: ["super_admin", "operator_admin"],
+    },
   },
 } as const
