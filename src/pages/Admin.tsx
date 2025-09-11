@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import DepartureBoard from "@/components/DepartureBoard";
-import AnnouncementSystem from "@/components/AnnouncementSystem";
+import AdminPanel from "@/components/AdminPanel";
 import { Button } from "@/components/ui/button";
-import { Languages } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Departure {
   id: string;
@@ -17,7 +17,7 @@ interface Departure {
   fleetImage?: string;
 }
 
-// Mock data for demonstration
+// Mock data for demonstration (should match the main data)
 const initialDepartures: Departure[] = [
   {
     id: "1",
@@ -66,65 +66,38 @@ const initialDepartures: Departure[] = [
   }
 ];
 
-const Index = () => {
-  const [currentTime, setCurrentTime] = useState(new Date());
+const Admin = () => {
+  const navigate = useNavigate();
   const [departures, setDepartures] = useState<Departure[]>(initialDepartures);
-  const [currentAnnouncement, setCurrentAnnouncement] = useState<Departure | undefined>();
-  const [language, setLanguage] = useState<"en" | "km">("en");
-
-  // Update current time every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleAnnouncement = (departure: Departure) => {
-    setCurrentAnnouncement(departure);
-  };
-
-  const handleAnnouncementComplete = () => {
-    setCurrentAnnouncement(undefined);
-  };
-
-  const toggleLanguage = () => {
-    setLanguage(prev => prev === "en" ? "km" : "en");
-  };
 
   return (
     <div className="min-h-screen bg-dashboard p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Language Switcher */}
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            onClick={toggleLanguage}
-            className="flex items-center gap-2 bg-dashboard-surface border-dashboard-border text-text-primary hover:bg-dashboard-accent"
-          >
-            <Languages className="w-4 h-4" />
-            {language === "en" ? "ខ្មែរ" : "English"}
-          </Button>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Display
+            </Button>
+            <h1 className="text-3xl font-bold text-text-display">
+              Admin Panel
+            </h1>
+          </div>
         </div>
 
-        {/* Announcement Banner */}
-        {currentAnnouncement && (
-          <AnnouncementSystem 
-            departure={currentAnnouncement}
-            onComplete={handleAnnouncementComplete}
-          />
-        )}
-
-        {/* Departure Board */}
-        <DepartureBoard 
+        {/* Admin Panel */}
+        <AdminPanel 
           departures={departures}
-          currentTime={currentTime}
-          onAnnouncement={handleAnnouncement}
+          onUpdateDepartures={setDepartures}
         />
       </div>
     </div>
   );
 };
 
-export default Index;
+export default Admin;
