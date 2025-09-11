@@ -39,11 +39,11 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "on-time":
-        return "bg-green-500 text-white animate-pulse";
+        return "bg-green-500 text-white";
       case "delayed":
-        return "bg-red-500 text-white animate-bounce";
+        return "bg-red-500 text-white";
       case "boarding":
-        return "bg-blue-500 text-white animate-ping";
+        return "bg-blue-500 text-white";
       case "departed":
         return "bg-gray-500 text-white";
       default:
@@ -112,14 +112,14 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
               key={departure.id} 
               className={`bg-card transition-all duration-500 animate-fade-in ${
                 isBoarding 
-                  ? "border-2 border-blue-400 shadow-lg animate-pulse" 
+                  ? "border-2 border-blue-400 shadow-lg" 
                   : "border-2 border-border"
               }`}
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <CardContent className="p-6">
                 <div className="grid grid-cols-12 gap-4 items-center">
-                  {/* Fleet Picture - 2x bigger */}
+                  {/* Fleet Picture */}
                   <div className="col-span-2">
                     <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                       {departure.fleet_image_url ? (
@@ -136,44 +136,67 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                     </div>
                   </div>
 
-                  {/* Destination & Fleet Type */}
-                  <div className="col-span-4">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-2xl font-bold text-text-display">{departure.destination}</h3>
-                      <Badge className={getStatusColor(departure.status)}>
-                        {departure.status.toUpperCase()}
-                      </Badge>
+                  {/* Destination */}
+                  <div className="col-span-3">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-sm text-text-display/60 font-medium">Destination:</span>
+                        <h3 className="text-xl font-bold text-text-display">{departure.destination}</h3>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 mt-2">
-                      <Badge className={getFleetTypeColor(departure.fleet_type)}>
-                        <Truck className="w-4 h-4 mr-1" />
-                        {departure.fleet_type}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center space-x-4 text-text-display/80 mt-3">
+                  </div>
+
+                  {/* Fleet Details */}
+                  <div className="col-span-3">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-sm text-text-display/60 font-medium">Fleet Type:</span>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge className={getFleetTypeColor(departure.fleet_type)}>
+                            <Truck className="w-4 h-4 mr-1" />
+                            {departure.fleet_type}
+                          </Badge>
+                        </div>
+                      </div>
                       {departure.plate_number && (
-                        <div className="flex items-center">
-                          <Truck className="w-4 h-4 mr-1" />
-                          <span>{departure.plate_number}</span>
+                        <div>
+                          <span className="text-sm text-text-display/60 font-medium">Plate Number:</span>
+                          <div className="text-text-display/80">{departure.plate_number}</div>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Departure Time & Countdown */}
-                  <div className="col-span-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Clock className="w-5 h-5 mr-2 text-text-display/60" />
-                        <span className="text-xl font-bold text-text-display">{departure.departure_time}</span>
+                  <div className="col-span-2">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-sm text-text-display/60 font-medium">Departure Time:</span>
+                        <div className="flex items-center">
+                          <Clock className="w-4 h-4 mr-1 text-text-display/60" />
+                          <span className="text-lg font-bold text-text-display">{departure.departure_time}</span>
+                        </div>
                         {departure.estimated_time && departure.status === "delayed" && (
-                          <span className="text-red-500 ml-2">→ {departure.estimated_time}</span>
+                          <div className="text-red-500 text-sm">Est: {departure.estimated_time}</div>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div>
+                        <span className="text-sm text-text-display/60 font-medium">Countdown:</span>
                         <div className="text-lg font-bold text-text-display">
                           {calculateCountdown(departure.departure_time)}
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-span-2 flex justify-end">
+                    <div className="text-right">
+                      <span className="text-sm text-text-display/60 font-medium">Status:</span>
+                      <div className="mt-1">
+                        <Badge className={getStatusColor(departure.status)}>
+                          {departure.status.toUpperCase()}
+                        </Badge>
                       </div>
                     </div>
                   </div>

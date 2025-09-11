@@ -72,6 +72,13 @@ export const MultiAuthProvider = ({ children }: { children: ReactNode }) => {
         } : undefined
       };
 
+      // Set the current user context for RLS policies
+      await supabase.rpc('set_config', {
+        setting_name: 'app.current_user',
+        setting_value: username,
+        is_local: false
+      });
+
       setUser(userData);
       localStorage.setItem('multi_auth_user', JSON.stringify(userData));
       
@@ -92,7 +99,18 @@ export const MultiAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Clear the current user context
+    try {
+      await supabase.rpc('set_config', {
+        setting_name: 'app.current_user',
+        setting_value: '',
+        is_local: false
+      });
+    } catch (error) {
+      console.error('Error clearing user context:', error);
+    }
+    
     setUser(null);
     localStorage.removeItem('multi_auth_user');
     toast({
@@ -108,6 +126,12 @@ export const MultiAuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const userData = JSON.parse(savedUser);
         setUser(userData);
+        // Set the current user context for RLS policies
+        supabase.rpc('set_config', {
+          setting_name: 'app.current_user',
+          setting_value: userData.username,
+          is_local: false
+        }).catch(console.error);
       } catch (error) {
         console.error('Error parsing saved user data:', error);
         localStorage.removeItem('multi_auth_user');
