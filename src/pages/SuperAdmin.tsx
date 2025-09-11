@@ -7,9 +7,18 @@ import { useMultiAuth } from "@/hooks/useMultiAuth";
 
 const SuperAdmin = () => {
   const navigate = useNavigate();
-  const { user, logout } = useMultiAuth();
+  const { user, logout, loading } = useMultiAuth();
+
+  console.log('SuperAdmin - user:', user, 'loading:', loading);
+
+  if (loading) {
+    return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
+      <div className="text-text-display text-xl">Loading...</div>
+    </div>;
+  }
 
   if (!user || user.role !== 'super_admin') {
+    console.log('Showing AdminLogin - user check failed');
     return <AdminLogin />;
   }
 

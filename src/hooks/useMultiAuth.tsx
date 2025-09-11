@@ -78,6 +78,8 @@ export const MultiAuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(userData);
       localStorage.setItem('multi_auth_user', JSON.stringify(userData));
       
+      console.log('Login successful, user data:', userData);
+      
       toast({
         title: "Login Successful",
         description: `Welcome back, ${username}!`,

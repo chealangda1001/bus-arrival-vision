@@ -9,12 +9,21 @@ import { ArrowLeft, LogOut } from "lucide-react";
 const OperatorAdmin = () => {
   const { operatorSlug } = useParams();
   const navigate = useNavigate();
-  const { user, logout } = useMultiAuth();
+  const { user, logout, loading } = useMultiAuth();
   const { getDefaultBranch } = useBranches();
 
   const defaultBranch = getDefaultBranch(operatorSlug!);
 
+  console.log('OperatorAdmin - user:', user, 'loading:', loading, 'operatorSlug:', operatorSlug);
+
+  if (loading) {
+    return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
+      <div className="text-text-display text-xl">Loading...</div>
+    </div>;
+  }
+
   if (!user || (user.role !== 'super_admin' && user.operator?.slug !== operatorSlug)) {
+    console.log('Showing AdminLogin - user check failed');
     return <AdminLogin />;
   }
 
