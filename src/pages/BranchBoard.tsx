@@ -49,6 +49,7 @@ const BranchBoard = () => {
           <div className="mb-6">
             <AnnouncementSystem
               departure={currentAnnouncement.departure}
+              operatorId={branch.operator_id}
               onComplete={handleAnnouncementComplete}
             />
           </div>

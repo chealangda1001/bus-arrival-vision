@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Upload, Truck } from "lucide-react";
+import { Trash2, Upload, Truck, Volume2, Play } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import FleetManagement from "./FleetManagement";
+import OperatorSettings from "./OperatorSettings";
+import AnnouncementSystem from "./AnnouncementSystem";
 
 interface AdminPanelProps {
   branchId?: string;
@@ -25,6 +27,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
+  const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
   const [newDeparture, setNewDeparture] = useState({
     destination: "",
     departure_time: "",
@@ -239,6 +242,21 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     await updateDepartureStatus(id, status, estimatedTime || undefined);
   };
 
+  const triggerManualAnnouncement = (departureId: string) => {
+    setManualAnnouncements(prev => ({
+      ...prev,
+      [departureId]: true
+    }));
+    
+    // Reset after a short delay
+    setTimeout(() => {
+      setManualAnnouncements(prev => ({
+        ...prev,
+        [departureId]: false
+      }));
+    }, 100);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "on-time": return "bg-green-100 text-green-800";
@@ -277,11 +295,15 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="departures">Departure Management</TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
             Fleet Management
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            Announcement Settings
           </TabsTrigger>
         </TabsList>
         
@@ -658,13 +680,39 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => triggerManualAnnouncement(departure.id)}
+                            title="Play manual announcement"
+                          >
+                            <Play className="w-4 h-4" />
+                          </Button>
                         </>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  {/* Manual Announcement System */}
+                  {manualAnnouncements[departure.id] && (
+                    <div className="mt-4">
+                      <AnnouncementSystem
+                        departure={departure}
+                        operatorId={operatorId}
+                        manualTrigger={true}
+                        onComplete={() => {
+                          setManualAnnouncements(prev => ({
+                            ...prev,
+                            [departure.id]: false
+                          }));
+                        }}
+                      />
+                    </div>
+                  )}
+                ) : (
+                </div>
+              ))}
             
             {departures.length === 0 && (
               <p className="text-center text-text-display/60 py-8">
@@ -677,7 +725,22 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         </TabsContent>
         
         <TabsContent value="fleets">
-          {operatorId && <FleetManagement operatorId={operatorId} />}
+          <FleetManagement operatorId={operatorId} />
+        </TabsContent>
+        
+        <TabsContent value="settings">
+          {operatorId ? (
+            <OperatorSettings operatorId={operatorId} />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Error</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Operator ID is required to manage announcement settings.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

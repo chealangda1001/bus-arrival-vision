@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcements_cache: {
+        Row: {
+          audio_data: string
+          cache_key: string
+          created_at: string
+          expires_at: string
+          id: string
+          language: string
+          operator_id: string
+        }
+        Insert: {
+          audio_data: string
+          cache_key: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          language: string
+          operator_id: string
+        }
+        Update: {
+          audio_data?: string
+          cache_key?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          language?: string
+          operator_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_cache_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           created_at: string
@@ -187,6 +225,47 @@ export type Database = {
             foreignKeyName: "operator_admins_operator_id_fkey"
             columns: ["operator_id"]
             isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_settings: {
+        Row: {
+          announcement_repeat_count: number
+          announcement_scripts: Json
+          auto_announcement_enabled: boolean
+          created_at: string
+          id: string
+          operator_id: string
+          updated_at: string
+          voice_enabled: boolean
+        }
+        Insert: {
+          announcement_repeat_count?: number
+          announcement_scripts?: Json
+          auto_announcement_enabled?: boolean
+          created_at?: string
+          id?: string
+          operator_id: string
+          updated_at?: string
+          voice_enabled?: boolean
+        }
+        Update: {
+          announcement_repeat_count?: number
+          announcement_scripts?: Json
+          auto_announcement_enabled?: boolean
+          created_at?: string
+          id?: string
+          operator_id?: string
+          updated_at?: string
+          voice_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_settings_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: true
             referencedRelation: "operators"
             referencedColumns: ["id"]
           },
