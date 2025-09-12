@@ -62,6 +62,15 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
 
   // Check for announcements when time updates
   useEffect(() => {
+    // Debug log for fleet images
+    console.log('Departures data:', departures.map(d => ({
+      id: d.id,
+      destination: d.destination,
+      fleet_image_url: d.fleet_image_url,
+      fleet_image_url_type: typeof d.fleet_image_url,
+      fleet_image_url_length: d.fleet_image_url?.length
+    })));
+    
     if (onAnnouncement) {
       departures.forEach((departure) => {
         const countdown = calculateCountdown(departure.departure_time);
@@ -129,11 +138,23 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   {/* Fleet Picture */}
                   <div className="col-span-2">
                     <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-                      {departure.fleet_image_url ? (
+                      {departure.fleet_image_url && departure.fleet_image_url.trim() !== '' ? (
                         <img 
                           src={departure.fleet_image_url} 
                           alt="Fleet vehicle" 
                           className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            console.error('Failed to load fleet image:', departure.fleet_image_url);
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = `
+                              <div class="w-16 h-12 bg-primary/20 rounded-sm flex items-center justify-center">
+                                <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0M15 17a2 2 0 104 0"></path>
+                                </svg>
+                              </div>
+                            `;
+                          }}
                         />
                       ) : (
                         <div className="w-16 h-12 bg-primary/20 rounded-sm flex items-center justify-center">
