@@ -62,13 +62,19 @@ export const useDepartures = (branchId?: string) => {
 
   const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      await setUserContext();
+      // Set user context for super admin operations
+      if (user?.username) {
+        await supabase.rpc('set_user_context', { username: user.username });
+      }
       
       const { error } = await supabase
         .from('departures')
         .insert([departure]);
 
       if (error) throw error;
+      
+      // Refresh departures after successful add
+      await fetchDepartures();
       
       toast({
         title: "Success",
@@ -86,7 +92,10 @@ export const useDepartures = (branchId?: string) => {
 
   const updateDepartureStatus = async (id: string, status: Departure['status'], estimatedTime?: string) => {
     try {
-      await setUserContext();
+      // Set user context for super admin operations
+      if (user?.username) {
+        await supabase.rpc('set_user_context', { username: user.username });
+      }
       
       const updates: any = { status };
       if (estimatedTime) updates.estimated_time = estimatedTime;
@@ -97,6 +106,9 @@ export const useDepartures = (branchId?: string) => {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Refresh departures after successful update
+      await fetchDepartures();
       
       toast({
         title: "Success",
@@ -114,7 +126,10 @@ export const useDepartures = (branchId?: string) => {
 
   const deleteDeparture = async (id: string) => {
     try {
-      await setUserContext();
+      // Set user context for super admin operations
+      if (user?.username) {
+        await supabase.rpc('set_user_context', { username: user.username });
+      }
       
       const { error } = await supabase
         .from('departures')
@@ -122,6 +137,9 @@ export const useDepartures = (branchId?: string) => {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Refresh departures after successful delete
+      await fetchDepartures();
       
       toast({
         title: "Success",
