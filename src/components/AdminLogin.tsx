@@ -3,20 +3,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useMultiAuth } from '@/hooks/useMultiAuth';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useToast } from '@/hooks/use-toast';
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useMultiAuth();
+  const { signIn } = useSupabaseAuth();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const success = await login(username, password);
-    if (!success) {
+    const { error } = await signIn(username, password);
+    if (error) {
       toast({
         title: "Error",
         description: "Invalid username or password",
