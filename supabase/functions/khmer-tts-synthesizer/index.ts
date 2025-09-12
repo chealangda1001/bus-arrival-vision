@@ -21,7 +21,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voice = 'cedar', rate = 1.0, pitch = 1.0, operatorId }: TTSRequest = await req.json()
+    const { text, voice = 'nova', rate = 1.0, pitch = 1.0, operatorId }: TTSRequest = await req.json()
 
     if (!text) {
       throw new Error('Text is required')
@@ -43,14 +43,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Check cache first
-    const { data: cachedAudio } = await supabase
+    // Check cache first - handle null operator_id properly
+    let cacheQuery = supabase
       .from('announcements_cache')
       .select('audio_data')
       .eq('cache_key', cacheKey)
-      .eq('operator_id', operatorId || '')
       .gt('expires_at', new Date().toISOString())
-      .single()
+    
+    if (operatorId) {
+      cacheQuery = cacheQuery.eq('operator_id', operatorId)
+    } else {
+      cacheQuery = cacheQuery.is('operator_id', null)
+    }
+    
+    const { data: cachedAudio } = await cacheQuery.single()
 
     if (cachedAudio) {
       console.log('Found cached audio')
@@ -87,18 +93,16 @@ serve(async (req) => {
       String.fromCharCode(...new Uint8Array(arrayBuffer))
     )
 
-    // Cache the result
-    if (operatorId) {
-      await supabase
-        .from('announcements_cache')
-        .insert({
-          operator_id: operatorId,
-          cache_key: cacheKey,
-          language: 'khmer',
-          audio_data: base64Audio,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        })
-    }
+    // Cache the result - handle null operator_id properly
+    await supabase
+      .from('announcements_cache')
+      .insert({
+        operator_id: operatorId || null,
+        cache_key: cacheKey,
+        language: 'khmer',
+        audio_data: base64Audio,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      })
 
     console.log('Generated and cached new audio')
 
