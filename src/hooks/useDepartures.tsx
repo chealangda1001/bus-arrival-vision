@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useMultiAuth } from '@/hooks/useMultiAuth';
 
 export interface Departure {
   id: string;
@@ -20,6 +21,13 @@ export const useDepartures = (branchId?: string) => {
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useMultiAuth();
+
+  const setUserContext = async () => {
+    if (user?.username) {
+      await supabase.rpc('set_user_context', { username: user.username });
+    }
+  };
 
   const fetchDepartures = async () => {
     try {
@@ -54,6 +62,8 @@ export const useDepartures = (branchId?: string) => {
 
   const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      await setUserContext();
+      
       const { error } = await supabase
         .from('departures')
         .insert([departure]);
@@ -76,6 +86,8 @@ export const useDepartures = (branchId?: string) => {
 
   const updateDepartureStatus = async (id: string, status: Departure['status'], estimatedTime?: string) => {
     try {
+      await setUserContext();
+      
       const updates: any = { status };
       if (estimatedTime) updates.estimated_time = estimatedTime;
 
@@ -102,6 +114,8 @@ export const useDepartures = (branchId?: string) => {
 
   const deleteDeparture = async (id: string) => {
     try {
+      await setUserContext();
+      
       const { error } = await supabase
         .from('departures')
         .delete()
