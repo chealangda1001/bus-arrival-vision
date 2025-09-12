@@ -116,6 +116,49 @@ const SuperAdminPanel = () => {
     }
   };
 
+  const handleFleetImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `fleet-${Math.random()}.${fileExt}`;
+      const filePath = `fleet-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('fleet-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('fleet-images')
+        .getPublicUrl(filePath);
+
+      // Update the appropriate state based on whether we're creating or editing
+      if (editingDeparture) {
+        setEditDeparture(prev => ({ ...prev, fleet_image_url: data.publicUrl }));
+      } else {
+        setNewDeparture(prev => ({ ...prev, fleet_image_url: data.publicUrl }));
+      }
+      
+      toast({
+        title: "Success",
+        description: "Fleet image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading fleet image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload fleet image",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleCreateOperator = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -993,16 +1036,39 @@ const SuperAdminPanel = () => {
                                                  </SelectContent>
                                                </Select>
                                              </div>
-                                             <div>
-                                               <Label htmlFor="new-departure-estimated">Estimated Time</Label>
-                                               <Input
-                                                 id="new-departure-estimated"
-                                                 type="time"
-                                                 value={newDeparture.estimated_time}
-                                                 onChange={(e) => setNewDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
-                                               />
-                                             </div>
-                                           </div>
+                                              <div>
+                                                <Label htmlFor="new-departure-estimated">Estimated Time</Label>
+                                                <Input
+                                                  id="new-departure-estimated"
+                                                  type="time"
+                                                  value={newDeparture.estimated_time}
+                                                  onChange={(e) => setNewDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
+                                                />
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <Label htmlFor="new-departure-fleet-image">Fleet Image</Label>
+                                              <div className="flex items-center gap-4">
+                                                <Input
+                                                  id="new-departure-fleet-image"
+                                                  type="file"
+                                                  accept="image/*"
+                                                  onChange={handleFleetImageUpload}
+                                                  disabled={uploading}
+                                                />
+                                                <Button type="button" variant="outline" disabled={uploading}>
+                                                  <Upload className="w-4 h-4 mr-2" />
+                                                  {uploading ? "Uploading..." : "Upload Image"}
+                                                </Button>
+                                              </div>
+                                              {newDeparture.fleet_image_url && (
+                                                <img 
+                                                  src={newDeparture.fleet_image_url} 
+                                                  alt="Fleet preview" 
+                                                  className="mt-2 w-16 h-16 rounded-lg object-cover"
+                                                />
+                                              )}
+                                            </div>
                                            <div className="flex space-x-2">
                                              <Button type="submit" size="sm">Create Departure</Button>
                                              <Button type="button" variant="outline" size="sm" onClick={cancelDepartureEdit}>
@@ -1083,16 +1149,39 @@ const SuperAdminPanel = () => {
                                                      </SelectContent>
                                                    </Select>
                                                  </div>
-                                                 <div>
-                                                   <Label htmlFor="edit-departure-estimated">Estimated Time</Label>
-                                                   <Input
-                                                     id="edit-departure-estimated"
-                                                     type="time"
-                                                     value={editDeparture.estimated_time}
-                                                     onChange={(e) => setEditDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
-                                                   />
-                                                 </div>
-                                               </div>
+                                                  <div>
+                                                    <Label htmlFor="edit-departure-estimated">Estimated Time</Label>
+                                                    <Input
+                                                      id="edit-departure-estimated"
+                                                      type="time"
+                                                      value={editDeparture.estimated_time}
+                                                      onChange={(e) => setEditDeparture(prev => ({ ...prev, estimated_time: e.target.value }))}
+                                                    />
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <Label htmlFor="edit-departure-fleet-image">Fleet Image</Label>
+                                                  <div className="flex items-center gap-4">
+                                                    <Input
+                                                      id="edit-departure-fleet-image"
+                                                      type="file"
+                                                      accept="image/*"
+                                                      onChange={handleFleetImageUpload}
+                                                      disabled={uploading}
+                                                    />
+                                                    <Button type="button" variant="outline" disabled={uploading}>
+                                                      <Upload className="w-4 h-4 mr-2" />
+                                                      {uploading ? "Uploading..." : "Upload Image"}
+                                                    </Button>
+                                                  </div>
+                                                  {editDeparture.fleet_image_url && (
+                                                    <img 
+                                                      src={editDeparture.fleet_image_url} 
+                                                      alt="Fleet preview" 
+                                                      className="mt-2 w-16 h-16 rounded-lg object-cover"
+                                                    />
+                                                  )}
+                                                </div>
                                                <div className="flex space-x-2">
                                                  <Button type="submit" size="sm">Save Changes</Button>
                                                  <Button type="button" variant="outline" size="sm" onClick={cancelDepartureEdit}>
