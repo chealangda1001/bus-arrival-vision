@@ -210,6 +210,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       set_user_context: {
         Args: { user_role?: string; username: string } | { username: string }
         Returns: undefined
