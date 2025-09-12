@@ -29,8 +29,13 @@ serve(async (req) => {
 
     console.log(`Generating TTS for voice: ${voice}, text: ${text.substring(0, 50)}...`)
 
-    // Generate cache key
-    const cacheKey = `khmer_tts_${btoa(text)}_${voice}_${rate}_${pitch}`
+    // Generate cache key using crypto hash for Unicode support
+    const encoder = new TextEncoder()
+    const data = encoder.encode(`${text}_${voice}_${rate}_${pitch}`)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashArray = new Uint8Array(hashBuffer)
+    const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('')
+    const cacheKey = `khmer_tts_${hashHex}`
 
     // Initialize Supabase client
     const supabase = createClient(
