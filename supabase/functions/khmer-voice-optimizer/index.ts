@@ -20,7 +20,7 @@ const KHMER_TEST_PHRASES = [
   'សូមអធ្យាស្រ័យក្នុងការយឺតយ៉ាវ និងអរគុណចំពោះការអត់ធ្មត់របស់លោកអ្នក។'
 ]
 
-const DEFAULT_VOICES = ['cedar', 'marin', 'shimmer', 'alloy', 'onyx', 'nova', 'echo', 'fable']
+const DEFAULT_VOICES = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral']
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -51,7 +51,7 @@ serve(async (req) => {
         .from('voice_preferences')
         .insert({
           operator_id: operatorId || null,
-          preferred_voice: 'cedar',
+          preferred_voice: 'nova',
           voice_candidates: DEFAULT_VOICES
         })
         .select()

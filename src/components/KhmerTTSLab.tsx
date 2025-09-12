@@ -31,13 +31,13 @@ interface VoiceEvaluation {
   };
 }
 
-const DEFAULT_VOICES = ['cedar', 'marin', 'shimmer', 'alloy', 'onyx', 'nova', 'echo', 'fable'];
+const DEFAULT_VOICES = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
 const SAMPLE_KHMER_TEXT = 'សូមអ្នកដំណើរ សេវាកម្ម VIP Van ទៅ Kep នឹងចេញនៅម៉ោង ០៧:៤៥។ លេខផ្ទាំងឡាន PP-1234។ សូមទៅកាន់តំបន់ឡើងឡាន។';
 
 const KhmerTTSLab = () => {
   const { toast } = useToast();
   const [khmerText, setKhmerText] = useState(SAMPLE_KHMER_TEXT);
-  const [selectedVoice, setSelectedVoice] = useState('cedar');
+  const [selectedVoice, setSelectedVoice] = useState('nova');
   const [rate, setRate] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -207,7 +207,7 @@ const KhmerTTSLab = () => {
     setTestResults([]);
     
     try {
-      const testVoices = ['cedar', 'marin', 'shimmer', 'nova'];
+      const testVoices = ['nova', 'shimmer', 'echo', 'alloy'];
       const results: VoiceEvaluation[] = [];
 
       for (const voice of testVoices) {
