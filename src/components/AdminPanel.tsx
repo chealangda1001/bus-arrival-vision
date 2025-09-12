@@ -693,24 +693,24 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       )}
                     </div>
                   </div>
-                  
-                  {/* Manual Announcement System */}
-                  {manualAnnouncements[departure.id] && (
-                    <div className="mt-4">
-                      <AnnouncementSystem
-                        departure={departure}
-                        operatorId={operatorId}
-                        manualTrigger={true}
-                        onComplete={() => {
-                          setManualAnnouncements(prev => ({
-                            ...prev,
-                            [departure.id]: false
-                          }));
-                        }}
-                      />
-                    </div>
-                  )}
-                ) : (
+                )}
+                
+                {/* Manual Announcement System */}
+                {manualAnnouncements[departure.id] && (
+                  <div className="mt-4">
+                    <AnnouncementSystem
+                      departure={departure}
+                      operatorId={operatorId}
+                      manualTrigger={true}
+                      onComplete={() => {
+                        setManualAnnouncements(prev => ({
+                          ...prev,
+                          [departure.id]: false
+                        }));
+                      }}
+                    />
+                  </div>
+                )}
                 </div>
               ))}
             
