@@ -40,7 +40,6 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
 
   const handleTestAnnouncement = () => {
     setTestDeparture(true);
-    setTimeout(() => setTestDeparture(false), 100);
   };
 
   const handleClearCache = () => {
