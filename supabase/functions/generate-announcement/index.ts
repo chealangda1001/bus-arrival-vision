@@ -35,10 +35,13 @@ serve(async (req) => {
     const cacheKey = (() => {
       try {
         const jsonString = JSON.stringify({ text, language, voice: 'alloy' });
-        // Use TextEncoder for proper UTF-8 handling in Deno
-        const encoder = new TextEncoder();
-        const data = encoder.encode(jsonString);
-        return btoa(String.fromCharCode(...data));
+        // Use a simple hash approach to avoid stack overflow with large texts
+        let hash = 0;
+        for (let i = 0; i < jsonString.length; i++) {
+          const char = jsonString.charCodeAt(i);
+          hash = ((hash << 5) - hash + char) & 0xffffffff;
+        }
+        return btoa(`cache_${Math.abs(hash)}_${language}`);
       } catch (error) {
         console.error('Error generating cache key:', error);
         // Fallback to a simple hash-like key
@@ -92,11 +95,19 @@ serve(async (req) => {
       throw new Error(`OpenAI TTS API error: ${error.error?.message || 'Failed to generate speech'}`);
     }
 
-    // Convert audio buffer to base64
+    // Convert audio buffer to base64 safely
     const arrayBuffer = await response.arrayBuffer();
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
-    );
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binaryString = '';
+    
+    // Process in chunks to avoid stack overflow
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    
+    const base64Audio = btoa(binaryString);
 
     // Cache the generated audio
     try {

@@ -181,12 +181,17 @@ export class AudioQueue {
 // Generate cache key for announcement
 export const generateCacheKey = (text: string, language: string, operatorId: string): string => {
   try {
-    // Use proper UTF-8 encoding for non-Latin1 characters
-    const jsonString = JSON.stringify({ text, language, operatorId, voice: 'alloy' });
-    return btoa(unescape(encodeURIComponent(jsonString)));
+    // Use a simple hash approach to avoid encoding issues with non-Latin characters
+    const input = `${text}_${language}_${operatorId}_alloy`;
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+      const char = input.charCodeAt(i);
+      hash = ((hash << 5) - hash + char) & 0xffffffff;
+    }
+    return btoa(`cache_${Math.abs(hash)}_${language}_${operatorId}`);
   } catch (error) {
     console.error('Error generating cache key:', error);
-    // Fallback to a hash-like key without special characters
+    // Fallback to a time-based key
     const fallbackKey = `${language}_${operatorId}_${text.length}_${Date.now()}`;
     return btoa(fallbackKey);
   }
