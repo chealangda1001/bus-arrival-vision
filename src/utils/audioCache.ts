@@ -180,7 +180,16 @@ export class AudioQueue {
 
 // Generate cache key for announcement
 export const generateCacheKey = (text: string, language: string, operatorId: string): string => {
-  return btoa(JSON.stringify({ text, language, operatorId, voice: 'alloy' }));
+  try {
+    // Use proper UTF-8 encoding for non-Latin1 characters
+    const jsonString = JSON.stringify({ text, language, operatorId, voice: 'alloy' });
+    return btoa(unescape(encodeURIComponent(jsonString)));
+  } catch (error) {
+    console.error('Error generating cache key:', error);
+    // Fallback to a hash-like key without special characters
+    const fallbackKey = `${language}_${operatorId}_${text.length}_${Date.now()}`;
+    return btoa(fallbackKey);
+  }
 };
 
 // Singleton instance

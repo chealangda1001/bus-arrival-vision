@@ -31,8 +31,20 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Generate cache key
-    const cacheKey = btoa(JSON.stringify({ text, language, voice: 'alloy' }));
+    // Generate cache key with proper UTF-8 encoding
+    const cacheKey = (() => {
+      try {
+        const jsonString = JSON.stringify({ text, language, voice: 'alloy' });
+        // Use TextEncoder for proper UTF-8 handling in Deno
+        const encoder = new TextEncoder();
+        const data = encoder.encode(jsonString);
+        return btoa(String.fromCharCode(...data));
+      } catch (error) {
+        console.error('Error generating cache key:', error);
+        // Fallback to a simple hash-like key
+        return btoa(`${language}_${text.length}_${Date.now()}`);
+      }
+    })();
 
     // Check if audio is already cached
     const { data: cachedAudio } = await supabase
