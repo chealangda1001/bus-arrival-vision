@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useMultiAuth } from '@/hooks/useMultiAuth';
 
 export interface Departure {
   id: string;
@@ -21,16 +20,6 @@ export const useDepartures = (branchId?: string) => {
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useMultiAuth();
-
-  const setUserContext = async () => {
-    if (user?.username && user?.role) {
-      await supabase.rpc('set_user_context', { 
-        username: user.username, 
-        user_role: user.role 
-      });
-    }
-  };
 
   const fetchDepartures = async () => {
     try {
@@ -65,39 +54,11 @@ export const useDepartures = (branchId?: string) => {
 
   const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      if (user?.role === 'super_admin') {
-        // Use edge function for super admin operations
-        const { data: session } = await supabase.auth.getSession();
-        const token = session.session?.access_token;
-        
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
+      const { error } = await supabase
+        .from('departures')
+        .insert([departure]);
 
-        const response = await fetch('/functions/v1/admin-operations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            operation: 'insert',
-            data: departure
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to add departure');
-        }
-      } else {
-        // Regular user operations - use normal client with RLS
-        const { error } = await supabase
-          .from('departures')
-          .insert([departure]);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
       
       // Refresh departures after successful add
       await fetchDepartures();
@@ -121,41 +82,12 @@ export const useDepartures = (branchId?: string) => {
       const updates: any = { status };
       if (estimatedTime) updates.estimated_time = estimatedTime;
 
-      if (user?.role === 'super_admin') {
-        // Use edge function for super admin operations
-        const { data: session } = await supabase.auth.getSession();
-        const token = session.session?.access_token;
-        
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
+      const { error } = await supabase
+        .from('departures')
+        .update(updates)
+        .eq('id', id);
 
-        const response = await fetch('/functions/v1/admin-operations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            operation: 'update',
-            data: updates,
-            id: id
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to update departure');
-        }
-      } else {
-        // Regular user operations - use normal client with RLS
-        const { error } = await supabase
-          .from('departures')
-          .update(updates)
-          .eq('id', id);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
       
       // Refresh departures after successful update
       await fetchDepartures();
@@ -176,40 +108,12 @@ export const useDepartures = (branchId?: string) => {
 
   const deleteDeparture = async (id: string) => {
     try {
-      if (user?.role === 'super_admin') {
-        // Use edge function for super admin operations
-        const { data: session } = await supabase.auth.getSession();
-        const token = session.session?.access_token;
-        
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
+      const { error } = await supabase
+        .from('departures')
+        .delete()
+        .eq('id', id);
 
-        const response = await fetch('/functions/v1/admin-operations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            operation: 'delete',
-            id: id
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete departure');
-        }
-      } else {
-        // Regular user operations - use normal client with RLS
-        const { error } = await supabase
-          .from('departures')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
       
       // Refresh departures after successful delete
       await fetchDepartures();

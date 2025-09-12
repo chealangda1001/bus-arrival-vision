@@ -1,20 +1,27 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useMultiAuth } from "@/hooks/useMultiAuth";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useBranches } from "@/hooks/useBranches";
 import AdminPanel from "@/components/AdminPanel";
-import AdminLogin from "@/components/AdminLogin";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut } from "lucide-react";
+import { useEffect } from "react";
 
 const OperatorAdmin = () => {
   const { operatorSlug } = useParams();
   const navigate = useNavigate();
-  const { user, logout, loading } = useMultiAuth();
+  const { profile, signOut, loading, user } = useSupabaseAuth();
   const { getDefaultBranch } = useBranches();
 
   const defaultBranch = getDefaultBranch(operatorSlug!);
 
-  console.log('OperatorAdmin - user:', user, 'loading:', loading, 'operatorSlug:', operatorSlug);
+  console.log('OperatorAdmin - profile:', profile, 'loading:', loading, 'operatorSlug:', operatorSlug);
+
+  // Redirect to auth page if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [loading, user, navigate]);
 
   if (loading) {
     return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
@@ -22,9 +29,10 @@ const OperatorAdmin = () => {
     </div>;
   }
 
-  if (!user || (user.role !== 'super_admin' && user.operator?.slug !== operatorSlug)) {
-    console.log('Showing AdminLogin - user check failed');
-    return <AdminLogin />;
+  if (!profile || (profile.role !== 'super_admin' && profile.operator?.slug !== operatorSlug)) {
+    return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
+      <div className="text-text-display text-xl">Access denied. Operator admin role required.</div>
+    </div>;
   }
 
   return (
@@ -41,12 +49,12 @@ const OperatorAdmin = () => {
               Back to Board
             </Button>
             <h1 className="text-3xl font-bold text-text-display">
-              {user.operator?.name || operatorSlug} Admin
+              {profile.operator?.name || operatorSlug} Admin
             </h1>
           </div>
           <Button 
             variant="outline" 
-            onClick={logout}
+            onClick={signOut}
             className="flex items-center gap-2"
           >
             <LogOut className="w-4 h-4" />

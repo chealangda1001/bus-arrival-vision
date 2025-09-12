@@ -1,15 +1,22 @@
 import SuperAdminPanel from "@/components/SuperAdminPanel";
-import AdminLogin from "@/components/AdminLogin";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMultiAuth } from "@/hooks/useMultiAuth";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { useEffect } from "react";
 
 const SuperAdmin = () => {
   const navigate = useNavigate();
-  const { user, logout, loading } = useMultiAuth();
+  const { profile, signOut, loading, user } = useSupabaseAuth();
 
-  console.log('SuperAdmin - user:', user, 'loading:', loading);
+  console.log('SuperAdmin - profile:', profile, 'loading:', loading);
+
+  // Redirect to auth page if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [loading, user, navigate]);
 
   if (loading) {
     return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
@@ -17,9 +24,10 @@ const SuperAdmin = () => {
     </div>;
   }
 
-  if (!user || user.role !== 'super_admin') {
-    console.log('Showing AdminLogin - user check failed');
-    return <AdminLogin />;
+  if (!profile || profile.role !== 'super_admin') {
+    return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
+      <div className="text-text-display text-xl">Access denied. Super admin role required.</div>
+    </div>;
   }
 
   return (
@@ -42,7 +50,7 @@ const SuperAdmin = () => {
           </div>
           <Button 
             variant="outline" 
-            onClick={logout}
+            onClick={signOut}
             className="flex items-center gap-2"
           >
             <LogOut className="w-4 h-4" />

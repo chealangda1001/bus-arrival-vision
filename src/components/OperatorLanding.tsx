@@ -29,7 +29,7 @@ const OperatorLanding = () => {
           </p>
           <Button 
             variant="outline" 
-            onClick={() => navigate("/admin")}
+            onClick={() => navigate("/auth")}
             className="flex items-center gap-2"
           >
             <LogIn className="w-4 h-4" />
