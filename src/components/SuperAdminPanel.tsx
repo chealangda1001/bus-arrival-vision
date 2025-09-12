@@ -12,8 +12,9 @@ import { useDepartures } from "@/hooks/useDepartures";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck } from "lucide-react";
+import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volume2 } from "lucide-react";
 import FleetManagement from "./FleetManagement";
+import KhmerTTSLab from "./KhmerTTSLab";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -569,11 +570,15 @@ const SuperAdminPanel = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="operators" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="operators">Operator Management</TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
             Fleet Management
+          </TabsTrigger>
+          <TabsTrigger value="khmer-tts" className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            Khmer TTS Lab
           </TabsTrigger>
         </TabsList>
         
@@ -1295,6 +1300,10 @@ const SuperAdminPanel = () => {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="khmer-tts">
+          <KhmerTTSLab />
         </TabsContent>
       </Tabs>
     </div>

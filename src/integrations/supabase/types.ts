@@ -192,6 +192,59 @@ export type Database = {
         }
         Relationships: []
       }
+      khmer_voice_scores: {
+        Row: {
+          created_at: string
+          final_score: number
+          id: string
+          khmer_penalty: number
+          operator_id: string | null
+          original_score: number
+          similarity_score: number
+          test_date: string
+          test_text: string
+          transcribed_text: string | null
+          updated_at: string
+          voice_name: string
+        }
+        Insert: {
+          created_at?: string
+          final_score?: number
+          id?: string
+          khmer_penalty?: number
+          operator_id?: string | null
+          original_score?: number
+          similarity_score?: number
+          test_date?: string
+          test_text: string
+          transcribed_text?: string | null
+          updated_at?: string
+          voice_name: string
+        }
+        Update: {
+          created_at?: string
+          final_score?: number
+          id?: string
+          khmer_penalty?: number
+          operator_id?: string | null
+          original_score?: number
+          similarity_score?: number
+          test_date?: string
+          test_text?: string
+          transcribed_text?: string | null
+          updated_at?: string
+          voice_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "khmer_voice_scores_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operator_admins: {
         Row: {
           created_at: string
@@ -328,6 +381,53 @@ export type Database = {
             foreignKeyName: "profiles_operator_id_fkey"
             columns: ["operator_id"]
             isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_preferences: {
+        Row: {
+          auto_selected_voice: string | null
+          created_at: string
+          id: string
+          is_manual_override: boolean
+          last_optimization_date: string | null
+          operator_id: string | null
+          preferred_voice: string
+          tts_settings: Json
+          updated_at: string
+          voice_candidates: Json
+        }
+        Insert: {
+          auto_selected_voice?: string | null
+          created_at?: string
+          id?: string
+          is_manual_override?: boolean
+          last_optimization_date?: string | null
+          operator_id?: string | null
+          preferred_voice?: string
+          tts_settings?: Json
+          updated_at?: string
+          voice_candidates?: Json
+        }
+        Update: {
+          auto_selected_voice?: string | null
+          created_at?: string
+          id?: string
+          is_manual_override?: boolean
+          last_optimization_date?: string | null
+          operator_id?: string | null
+          preferred_voice?: string
+          tts_settings?: Json
+          updated_at?: string
+          voice_candidates?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_preferences_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: true
             referencedRelation: "operators"
             referencedColumns: ["id"]
           },
