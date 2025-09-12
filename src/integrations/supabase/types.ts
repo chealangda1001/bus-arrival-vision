@@ -176,7 +176,7 @@ export type Database = {
     }
     Functions: {
       set_user_context: {
-        Args: { username: string }
+        Args: { user_role?: string; username: string } | { username: string }
         Returns: undefined
       }
     }

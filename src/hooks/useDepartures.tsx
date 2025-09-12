@@ -24,8 +24,11 @@ export const useDepartures = (branchId?: string) => {
   const { user } = useMultiAuth();
 
   const setUserContext = async () => {
-    if (user?.username) {
-      await supabase.rpc('set_user_context', { username: user.username });
+    if (user?.username && user?.role) {
+      await supabase.rpc('set_user_context', { 
+        username: user.username, 
+        user_role: user.role 
+      });
     }
   };
 
@@ -63,8 +66,11 @@ export const useDepartures = (branchId?: string) => {
   const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       // Set user context for super admin operations
-      if (user?.username) {
-        await supabase.rpc('set_user_context', { username: user.username });
+      if (user?.username && user?.role) {
+        await supabase.rpc('set_user_context', { 
+          username: user.username, 
+          user_role: user.role 
+        });
       }
       
       const { error } = await supabase
@@ -93,8 +99,11 @@ export const useDepartures = (branchId?: string) => {
   const updateDepartureStatus = async (id: string, status: Departure['status'], estimatedTime?: string) => {
     try {
       // Set user context for super admin operations
-      if (user?.username) {
-        await supabase.rpc('set_user_context', { username: user.username });
+      if (user?.username && user?.role) {
+        await supabase.rpc('set_user_context', { 
+          username: user.username, 
+          user_role: user.role 
+        });
       }
       
       const updates: any = { status };
@@ -127,8 +136,11 @@ export const useDepartures = (branchId?: string) => {
   const deleteDeparture = async (id: string) => {
     try {
       // Set user context for super admin operations
-      if (user?.username) {
-        await supabase.rpc('set_user_context', { username: user.username });
+      if (user?.username && user?.role) {
+        await supabase.rpc('set_user_context', { 
+          username: user.username, 
+          user_role: user.role 
+        });
       }
       
       const { error } = await supabase
