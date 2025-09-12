@@ -247,14 +247,6 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       ...prev,
       [departureId]: true
     }));
-    
-    // Reset after a short delay
-    setTimeout(() => {
-      setManualAnnouncements(prev => ({
-        ...prev,
-        [departureId]: false
-      }));
-    }, 100);
   };
 
   const getStatusColor = (status: string) => {
