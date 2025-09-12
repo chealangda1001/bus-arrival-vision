@@ -106,8 +106,10 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       return;
     }
 
-    // Get fleet data if fleet selected
-    const selectedFleet = newDeparture.fleet_id ? fleets.find(f => f.id === newDeparture.fleet_id) : null;
+    // Get fleet data if fleet selected (but not manual)
+    const selectedFleet = newDeparture.fleet_id && newDeparture.fleet_id !== "manual" 
+      ? fleets.find(f => f.id === newDeparture.fleet_id) 
+      : null;
 
     const departureData = {
       branch_id: branchId,
@@ -115,7 +117,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       departure_time: newDeparture.departure_time,
       status: newDeparture.status,
       estimated_time: newDeparture.estimated_time || undefined,
-      fleet_id: newDeparture.fleet_id || undefined,
+      fleet_id: newDeparture.fleet_id !== "manual" ? newDeparture.fleet_id || undefined : undefined,
       // Use fleet data if available, otherwise use manual input
       plate_number: selectedFleet?.plate_number || newDeparture.plate_number,
       fleet_type: selectedFleet?.fleet_type || newDeparture.fleet_type,
@@ -163,17 +165,24 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       return;
     }
 
+    // Get fleet data if fleet selected (but not manual)
+    const selectedFleet = editDeparture.fleet_id && editDeparture.fleet_id !== "manual" 
+      ? fleets.find(f => f.id === editDeparture.fleet_id) 
+      : null;
+
     try {
       const { error } = await supabase
         .from('departures')
         .update({
           destination: editDeparture.destination,
-          plate_number: editDeparture.plate_number,
           departure_time: editDeparture.departure_time,
           status: editDeparture.status,
-          fleet_type: editDeparture.fleet_type,
           estimated_time: editDeparture.estimated_time || null,
-          fleet_image_url: editDeparture.fleet_image_url || null,
+          fleet_id: editDeparture.fleet_id !== "manual" ? editDeparture.fleet_id || null : null,
+          // Use fleet data if available, otherwise use manual input
+          plate_number: selectedFleet?.plate_number || editDeparture.plate_number,
+          fleet_type: selectedFleet?.fleet_type || editDeparture.fleet_type,
+          fleet_image_url: selectedFleet?.fleet_image_url || editDeparture.fleet_image_url || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingDeparture);
@@ -302,7 +311,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                     <SelectValue placeholder="Select an existing fleet or enter manually below" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Manual Entry</SelectItem>
+                     <SelectItem value="manual">Manual Entry</SelectItem>
                     {fleets.map((fleet) => (
                       <SelectItem key={fleet.id} value={fleet.id}>
                         {fleet.name} - {fleet.plate_number} ({fleet.fleet_type})
@@ -312,8 +321,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                 </Select>
               </div>
 
-              {/* Manual entry fields - only show when no fleet selected */}
-              {!newDeparture.fleet_id && (
+              {/* Manual entry fields - only show when no fleet selected or manual selected */}
+              {(!newDeparture.fleet_id || newDeparture.fleet_id === "manual") && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="fleetType">Fleet Type *</Label>
@@ -442,7 +451,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       <SelectValue placeholder="Select an existing fleet or enter manually below" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Manual Entry</SelectItem>
+                      <SelectItem value="manual">Manual Entry</SelectItem>
                       {fleets.map((fleet) => (
                         <SelectItem key={fleet.id} value={fleet.id}>
                           {fleet.name} - {fleet.plate_number} ({fleet.fleet_type})
@@ -452,8 +461,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                   </Select>
                 </div>
 
-                {/* Manual entry fields - only show when no fleet selected */}
-                {!editDeparture.fleet_id && (
+                {/* Manual entry fields - only show when no fleet selected or manual selected */}
+                {(!editDeparture.fleet_id || editDeparture.fleet_id === "manual") && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="edit-fleet-type">Fleet Type *</Label>
