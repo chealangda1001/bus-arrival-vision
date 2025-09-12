@@ -5,37 +5,46 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Upload } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Trash2, Upload, Truck } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
+import { useFleets } from "@/hooks/useFleets";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import FleetManagement from "./FleetManagement";
 
 interface AdminPanelProps {
   branchId?: string;
+  operatorId?: string;
 }
 
-const AdminPanel = ({ branchId }: AdminPanelProps) => {
+const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture } = useDepartures(branchId);
+  const { fleets } = useFleets(operatorId);
   const { toast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
   const [newDeparture, setNewDeparture] = useState({
     destination: "",
-    plate_number: "",
     departure_time: "",
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
-    fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
     estimated_time: "",
+    fleet_id: "",
+    // Legacy fields for manual entry
+    plate_number: "",
+    fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
     fleet_image_url: ""
   });
   const [editDeparture, setEditDeparture] = useState({
     destination: "",
-    plate_number: "",
     departure_time: "",
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
-    fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
     estimated_time: "",
+    fleet_id: "",
+    // Legacy fields for manual entry
+    plate_number: "",
+    fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
     fleet_image_url: ""
   });
 
@@ -97,15 +106,20 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
       return;
     }
 
+    // Get fleet data if fleet selected
+    const selectedFleet = newDeparture.fleet_id ? fleets.find(f => f.id === newDeparture.fleet_id) : null;
+
     const departureData = {
       branch_id: branchId,
       destination: newDeparture.destination,
-      plate_number: newDeparture.plate_number,
       departure_time: newDeparture.departure_time,
       status: newDeparture.status,
-      fleet_type: newDeparture.fleet_type,
       estimated_time: newDeparture.estimated_time || undefined,
-      fleet_image_url: newDeparture.fleet_image_url || undefined,
+      fleet_id: newDeparture.fleet_id || undefined,
+      // Use fleet data if available, otherwise use manual input
+      plate_number: selectedFleet?.plate_number || newDeparture.plate_number,
+      fleet_type: selectedFleet?.fleet_type || newDeparture.fleet_type,
+      fleet_image_url: selectedFleet?.fleet_image_url || newDeparture.fleet_image_url || undefined,
     };
 
     await addDeparture(departureData);
@@ -113,11 +127,12 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
     // Reset form
     setNewDeparture({
       destination: "",
-      plate_number: "",
       departure_time: "",
       status: "on-time",
-      fleet_type: "Bus",
       estimated_time: "",
+      fleet_id: "",
+      plate_number: "",
+      fleet_type: "Bus",
       fleet_image_url: ""
     });
   };
@@ -126,11 +141,12 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
     setEditingDeparture(departure.id);
     setEditDeparture({
       destination: departure.destination,
-      plate_number: departure.plate_number,
       departure_time: departure.departure_time,
       status: departure.status,
-      fleet_type: departure.fleet_type,
       estimated_time: departure.estimated_time || "",
+      fleet_id: (departure as any).fleet_id || "",
+      plate_number: departure.plate_number,
+      fleet_type: departure.fleet_type,
       fleet_image_url: departure.fleet_image_url || ""
     });
   };
@@ -172,11 +188,12 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
       setEditingDeparture(null);
       setEditDeparture({
         destination: "",
-        plate_number: "",
         departure_time: "",
         status: "on-time",
-        fleet_type: "Bus",
         estimated_time: "",
+        fleet_id: "",
+        plate_number: "",
+        fleet_type: "Bus",
         fleet_image_url: ""
       });
       
@@ -196,11 +213,12 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
     setEditingDeparture(null);
     setEditDeparture({
       destination: "",
-      plate_number: "",
       departure_time: "",
       status: "on-time",
-      fleet_type: "Bus",
       estimated_time: "",
+      fleet_id: "",
+      plate_number: "",
+      fleet_type: "Bus",
       fleet_image_url: ""
     });
   };
@@ -237,9 +255,9 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Toggle Edit Mode */}
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-text-display">Departure Management</h2>
+        <h2 className="text-2xl font-bold text-text-display">Admin Panel</h2>
         <Button 
           onClick={() => setEditMode(!editMode)}
           variant={editMode ? "destructive" : "default"}
@@ -247,6 +265,21 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
           {editMode ? "Exit Edit Mode" : "Edit Mode"}
         </Button>
       </div>
+
+      {/* Tabs for different management sections */}
+      <Tabs defaultValue="departures" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="departures">Departure Management</TabsTrigger>
+          <TabsTrigger value="fleets" className="flex items-center gap-2">
+            <Truck className="w-4 h-4" />
+            Fleet Management
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="departures" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Departure Management</h3>
+          </div>
 
       {/* Add New Departure Form */}
       {editMode && (
@@ -256,24 +289,61 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAddDeparture} className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fleetType">Fleet Type *</Label>
+              {/* Fleet Selection */}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="fleet">Select Fleet (Optional)</Label>
                 <Select 
-                  value={newDeparture.fleet_type} 
-                  onValueChange={(value: "VIP Van" | "Bus" | "Sleeping Bus") => 
-                    setNewDeparture(prev => ({...prev, fleet_type: value}))
+                  value={newDeparture.fleet_id} 
+                  onValueChange={(value) => 
+                    setNewDeparture(prev => ({...prev, fleet_id: value}))
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select an existing fleet or enter manually below" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="VIP Van">VIP Van</SelectItem>
-                    <SelectItem value="Bus">Bus</SelectItem>
-                    <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                    <SelectItem value="">Manual Entry</SelectItem>
+                    {fleets.map((fleet) => (
+                      <SelectItem key={fleet.id} value={fleet.id}>
+                        {fleet.name} - {fleet.plate_number} ({fleet.fleet_type})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Manual entry fields - only show when no fleet selected */}
+              {!newDeparture.fleet_id && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="fleetType">Fleet Type *</Label>
+                    <Select 
+                      value={newDeparture.fleet_type} 
+                      onValueChange={(value: "VIP Van" | "Bus" | "Sleeping Bus") => 
+                        setNewDeparture(prev => ({...prev, fleet_type: value}))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="VIP Van">VIP Van</SelectItem>
+                        <SelectItem value="Bus">Bus</SelectItem>
+                        <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="plateNumber">Plate Number</Label>
+                    <Input
+                      id="plateNumber"
+                      value={newDeparture.plate_number}
+                      onChange={(e) => setNewDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                    />
+                  </div>
+                </>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="destination">Destination *</Label>
@@ -305,29 +375,32 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
                 />
               </div>
 
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="fleetImage">Fleet Image</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="fleetImage"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file);
-                    }}
-                    disabled={uploading}
-                  />
-                  {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
-                  {newDeparture.fleet_image_url && (
-                    <img 
-                      src={newDeparture.fleet_image_url} 
-                      alt="Fleet preview" 
-                      className="w-12 h-12 object-cover rounded"
+              {/* Fleet image only for manual entry */}
+              {!newDeparture.fleet_id && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="fleetImage">Fleet Image (Optional)</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="fleetImage"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file);
+                      }}
+                      disabled={uploading}
                     />
-                  )}
+                    {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
+                    {newDeparture.fleet_image_url && (
+                      <img 
+                        src={newDeparture.fleet_image_url} 
+                        alt="Fleet preview" 
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
               
               <div className="col-span-2">
                 <Button type="submit" disabled={uploading}>
@@ -338,9 +411,9 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
             </form>
           </CardContent>
         </Card>
-      )}
+        )}
 
-      {/* Current Departures */}
+        {/* Current Departures */}
       <Card>
         <CardHeader>
           <CardTitle>Current Departures ({departures.length})</CardTitle>
@@ -354,26 +427,63 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
               >
                 {editingDeparture === departure.id ? (
                   // Edit Form
-                  <form onSubmit={handleUpdateDeparture} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-fleet-type">Fleet Type *</Label>
-                        <Select 
-                          value={editDeparture.fleet_type} 
-                          onValueChange={(value: "VIP Van" | "Bus" | "Sleeping Bus") => 
-                            setEditDeparture(prev => ({...prev, fleet_type: value}))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="VIP Van">VIP Van</SelectItem>
-                            <SelectItem value="Bus">Bus</SelectItem>
-                            <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+            <form onSubmit={handleUpdateDeparture} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Fleet Selection for Edit */}
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="edit-fleet">Select Fleet (Optional)</Label>
+                  <Select 
+                    value={editDeparture.fleet_id} 
+                    onValueChange={(value) => 
+                      setEditDeparture(prev => ({...prev, fleet_id: value}))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an existing fleet or enter manually below" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Manual Entry</SelectItem>
+                      {fleets.map((fleet) => (
+                        <SelectItem key={fleet.id} value={fleet.id}>
+                          {fleet.name} - {fleet.plate_number} ({fleet.fleet_type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Manual entry fields - only show when no fleet selected */}
+                {!editDeparture.fleet_id && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-fleet-type">Fleet Type *</Label>
+                      <Select 
+                        value={editDeparture.fleet_type} 
+                        onValueChange={(value: "VIP Van" | "Bus" | "Sleeping Bus") => 
+                          setEditDeparture(prev => ({...prev, fleet_type: value}))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="VIP Van">VIP Van</SelectItem>
+                          <SelectItem value="Bus">Bus</SelectItem>
+                          <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-plate-number">Plate Number</Label>
+                      <Input
+                        id="edit-plate-number"
+                        value={editDeparture.plate_number}
+                        onChange={(e) => setEditDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                      />
+                    </div>
+                  </>
+                )}
                       
                       <div className="space-y-2">
                         <Label htmlFor="edit-destination">Destination *</Label>
@@ -435,29 +545,32 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
                         />
                       </div>
 
-                      <div className="space-y-2 col-span-2">
-                        <Label htmlFor="edit-fleet-image">Fleet Image</Label>
-                        <div className="flex items-center gap-4">
-                          <Input
-                            id="edit-fleet-image"
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleImageUpload(file);
-                            }}
-                            disabled={uploading}
-                          />
-                          {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
-                          {editDeparture.fleet_image_url && (
-                            <img 
-                              src={editDeparture.fleet_image_url} 
-                              alt="Fleet preview" 
-                              className="w-12 h-12 object-cover rounded"
-                            />
-                          )}
-                        </div>
-                      </div>
+                {/* Fleet image only for manual entry */}
+                {!editDeparture.fleet_id && (
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="edit-fleet-image">Fleet Image (Optional)</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="edit-fleet-image"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file);
+                        }}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
+                      {editDeparture.fleet_image_url && (
+                        <img 
+                          src={editDeparture.fleet_image_url} 
+                          alt="Fleet preview" 
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
                     </div>
                     
                     <div className="flex space-x-2">
@@ -552,6 +665,12 @@ const AdminPanel = ({ branchId }: AdminPanelProps) => {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+        
+        <TabsContent value="fleets">
+          {operatorId && <FleetManagement operatorId={operatorId} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

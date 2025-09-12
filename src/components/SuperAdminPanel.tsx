@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOperators } from "@/hooks/useOperators";
 import { useBranches } from "@/hooks/useBranches";
 import { useDepartures } from "@/hooks/useDepartures";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus } from "lucide-react";
+import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck } from "lucide-react";
+import FleetManagement from "./FleetManagement";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -552,6 +554,30 @@ const SuperAdminPanel = () => {
   }
 
   return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-text-display">Super Admin Panel</h2>
+        <Button 
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Create New Operator
+        </Button>
+      </div>
+
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="operators" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="operators">Operator Management</TabsTrigger>
+          <TabsTrigger value="fleets" className="flex items-center gap-2">
+            <Truck className="w-4 h-4" />
+            Fleet Management
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="operators" className="space-y-6">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -1262,8 +1288,28 @@ const SuperAdminPanel = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+        
+        <TabsContent value="fleets">
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-text-display">Fleet Management</h2>
+            {operators.map((operator) => (
+              <Card key={operator.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5" />
+                    {operator.name} Fleet Management
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FleetManagement operatorId={operator.id} isSuperAdmin={true} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-};
 
 export default SuperAdminPanel;

@@ -62,6 +62,7 @@ export type Database = {
           departure_time: string
           destination: string
           estimated_time: string | null
+          fleet_id: string | null
           fleet_image_url: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id: string
@@ -75,6 +76,7 @@ export type Database = {
           departure_time: string
           destination: string
           estimated_time?: string | null
+          fleet_id?: string | null
           fleet_image_url?: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id?: string
@@ -88,6 +90,7 @@ export type Database = {
           departure_time?: string
           destination?: string
           estimated_time?: string | null
+          fleet_id?: string | null
           fleet_image_url?: string | null
           fleet_type?: Database["public"]["Enums"]["fleet_type"]
           id?: string
@@ -97,6 +100,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "departures_fleet_id_fkey"
+            columns: ["fleet_id"]
+            isOneToOne: false
+            referencedRelation: "fleets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "departures_new_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
@@ -104,6 +114,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fleets: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          fleet_image_url: string | null
+          fleet_type: Database["public"]["Enums"]["fleet_type"]
+          id: string
+          is_active: boolean | null
+          name: string
+          operator_id: string
+          plate_number: string
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          fleet_image_url?: string | null
+          fleet_type: Database["public"]["Enums"]["fleet_type"]
+          id?: string
+          is_active?: boolean | null
+          name: string
+          operator_id: string
+          plate_number: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          fleet_image_url?: string | null
+          fleet_type?: Database["public"]["Enums"]["fleet_type"]
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          operator_id?: string
+          plate_number?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       operator_admins: {
         Row: {

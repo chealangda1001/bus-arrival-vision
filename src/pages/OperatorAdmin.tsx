@@ -62,7 +62,7 @@ const OperatorAdmin = () => {
           </Button>
         </div>
 
-        <AdminPanel branchId={defaultBranch?.id} />
+        <AdminPanel branchId={defaultBranch?.id} operatorId={defaultBranch?.operator_id} />
       </div>
     </div>
   );
