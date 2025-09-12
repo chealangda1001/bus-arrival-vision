@@ -98,7 +98,14 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
         <h1 className="text-4xl font-bold text-text-display">
           Bus Departures
         </h1>
-        <p className="text-lg text-text-display/80">{currentTime}</p>
+        <p className="text-lg text-text-display/80">
+          {new Date().toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })} • {currentTime}
+        </p>
       </div>
 
       {/* Departures Grid */}
@@ -146,8 +153,8 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                     </div>
                   </div>
 
-                  {/* Fleet Details */}
-                  <div className="col-span-3">
+                  {/* Fleet Type */}
+                  <div className="col-span-2">
                     <div className="space-y-2">
                       <div>
                         <span className="text-sm text-text-display/60 font-medium">Fleet Type:</span>
@@ -158,16 +165,22 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                           </Badge>
                         </div>
                       </div>
-                      {departure.plate_number && (
-                        <div>
-                          <span className="text-sm text-text-display/60 font-medium">Plate Number:</span>
-                          <div className="text-text-display/80">{departure.plate_number}</div>
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  {/* Departure Time & Countdown */}
+                  {/* Plate Number */}
+                  <div className="col-span-1">
+                    {departure.plate_number && (
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-sm text-text-display/60 font-medium">Plate:</span>
+                          <div className="text-text-display/80 font-medium">{departure.plate_number}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Departure Time */}
                   <div className="col-span-2">
                     <div className="space-y-2">
                       <div>
@@ -180,12 +193,6 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                           <div className="text-red-500 text-sm">Est: {departure.estimated_time}</div>
                         )}
                       </div>
-                      <div>
-                        <span className="text-sm text-text-display/60 font-medium">Countdown:</span>
-                        <div className="text-lg font-bold text-text-display">
-                          {calculateCountdown(departure.departure_time)}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -193,10 +200,15 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   <div className="col-span-2 flex justify-end">
                     <div className="text-right">
                       <span className="text-sm text-text-display/60 font-medium">Status:</span>
-                      <div className="mt-1">
+                      <div className="mt-1 space-y-1">
                         <Badge className={getStatusColor(departure.status)}>
                           {departure.status.toUpperCase()}
                         </Badge>
+                        {departure.status === "boarding" && (
+                          <div className="text-sm font-medium text-text-display">
+                            {calculateCountdown(departure.departure_time)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
