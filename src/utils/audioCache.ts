@@ -182,7 +182,7 @@ export class AudioQueue {
 export const generateCacheKey = (text: string, language: string, operatorId: string): string => {
   try {
     // Use a simple hash approach to avoid encoding issues with non-Latin characters
-    const input = `${text}_${language}_${operatorId}_alloy`;
+    const input = `${text}_${language}_${operatorId}_nova`;
     let hash = 0;
     for (let i = 0; i < input.length; i++) {
       const char = input.charCodeAt(i);

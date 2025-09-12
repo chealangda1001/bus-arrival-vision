@@ -34,7 +34,7 @@ serve(async (req) => {
     // Generate cache key with proper UTF-8 encoding
     const cacheKey = (() => {
       try {
-        const jsonString = JSON.stringify({ text, language, voice: 'alloy' });
+        const jsonString = JSON.stringify({ text, language, voice: 'nova' });
         // Use a simple hash approach to avoid stack overflow with large texts
         let hash = 0;
         for (let i = 0; i < jsonString.length; i++) {
@@ -84,9 +84,9 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'tts-1',
         input: text,
-        voice: 'alloy', // Female voice
+        voice: 'nova', // Female voice optimized for multilingual content
         response_format: 'mp3',
-        speed: 1.0
+        speed: 0.9 // Slightly slower for better pronunciation of non-English languages
       }),
     });
 
