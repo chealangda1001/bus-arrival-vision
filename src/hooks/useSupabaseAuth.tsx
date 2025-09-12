@@ -37,6 +37,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for userId:', userId);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -54,14 +56,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', userId)
         .maybeSingle();
 
+      console.log('Profile query result:', { data, error });
+
       if (error) {
         console.error('Error fetching profile:', error);
         return null;
       }
 
-      if (!data) return null;
+      if (!data) {
+        console.log('No profile found for user:', userId);
+        return null;
+      }
 
-      return {
+      const profileData = {
         id: data.id,
         username: data.username,
         role: data.role as 'super_admin' | 'operator_admin',
@@ -73,6 +80,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           logo_url: data.operators.logo_url
         } : undefined
       };
+      
+      console.log('Processed profile data:', profileData);
+      return profileData;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;

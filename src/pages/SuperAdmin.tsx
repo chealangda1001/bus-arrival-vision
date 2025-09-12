@@ -9,24 +9,35 @@ const SuperAdmin = () => {
   const navigate = useNavigate();
   const { profile, signOut, loading, user } = useSupabaseAuth();
 
-  console.log('SuperAdmin - profile:', profile, 'loading:', loading);
+  console.log('SuperAdmin - profile:', profile, 'loading:', loading, 'user:', user);
+  console.log('Profile role check:', profile?.role, 'Is super_admin?', profile?.role === 'super_admin');
 
   // Redirect to auth page if not authenticated
   useEffect(() => {
     if (!loading && !user) {
+      console.log('No user, redirecting to auth');
       navigate('/auth');
     }
   }, [loading, user, navigate]);
 
   if (loading) {
+    console.log('Still loading...');
     return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
       <div className="text-text-display text-xl">Loading...</div>
     </div>;
   }
 
-  if (!profile || profile.role !== 'super_admin') {
+  if (!profile) {
+    console.log('No profile found');
     return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
-      <div className="text-text-display text-xl">Access denied. Super admin role required.</div>
+      <div className="text-text-display text-xl">Profile not found. Please try logging out and back in.</div>
+    </div>;
+  }
+
+  if (profile.role !== 'super_admin') {
+    console.log('Access denied - role is:', profile.role);
+    return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
+      <div className="text-text-display text-xl">Access denied. Super admin role required. Current role: {profile.role}</div>
     </div>;
   }
 
