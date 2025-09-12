@@ -8,11 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useOperators } from "@/hooks/useOperators";
 import { useBranches } from "@/hooks/useBranches";
 import { useDepartures } from "@/hooks/useDepartures";
+import { useMultiAuth } from "@/hooks/useMultiAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus } from "lucide-react";
 
 const SuperAdminPanel = () => {
+  const { user } = useMultiAuth();
   const { operators, loading, createOperator, refetch } = useOperators();
   const { branches, createBranch, refetch: refetchBranches } = useBranches();
   const { departures, addDeparture, updateDepartureStatus, deleteDeparture, refetch: refetchDepartures } = useDepartures();
