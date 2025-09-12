@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,21 @@ const AuthPage = () => {
   const [signInData, setSignInData] = useState({ email: '', password: '' });
   const [signUpData, setSignUpData] = useState({ email: '', password: '', username: '' });
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useSupabaseAuth();
+  const { signIn, signUp, user, profile, loading } = useSupabaseAuth();
   const navigate = useNavigate();
+
+  // Redirect after successful authentication
+  useEffect(() => {
+    if (!loading && user && profile) {
+      if (profile.role === 'super_admin') {
+        navigate('/admin');
+      } else if (profile.role === 'operator_admin' && profile.operator) {
+        navigate(`/operator/${profile.operator.slug}/admin`);
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, profile, loading, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +35,8 @@ const AuthPage = () => {
     const { error } = await signIn(signInData.email, signInData.password);
     
     if (!error) {
-      // Will be redirected by auth state change
+      // Redirect will be handled by useEffect after profile is loaded
+      console.log('Login successful, waiting for profile data...');
     }
     
     setIsLoading(false);
