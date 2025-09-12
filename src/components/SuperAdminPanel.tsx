@@ -578,18 +578,6 @@ const SuperAdminPanel = () => {
         </TabsList>
         
         <TabsContent value="operators" className="space-y-6">
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-text-display">Super Admin Panel</h2>
-        <Button 
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create New Operator
-        </Button>
-      </div>
 
       {/* Create Operator Form */}
       {showCreateForm && (
@@ -1292,7 +1280,7 @@ const SuperAdminPanel = () => {
         
         <TabsContent value="fleets">
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-text-display">Fleet Management</h2>
+            <h3 className="text-lg font-semibold">Fleet Management</h3>
             {operators.map((operator) => (
               <Card key={operator.id}>
                 <CardHeader>
@@ -1311,5 +1299,6 @@ const SuperAdminPanel = () => {
       </Tabs>
     </div>
   );
+};
 
 export default SuperAdminPanel;
