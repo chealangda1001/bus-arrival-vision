@@ -135,14 +135,17 @@ export const useDepartures = (branchId?: string) => {
   useEffect(() => {
     fetchDepartures();
 
-    // Set up real-time subscription
+    // Set up real-time subscription with branch filtering
+    const channelName = branchId ? `departures_changes_${branchId}` : 'departures_changes_all';
     const channel = supabase
-      .channel('departures_changes')
+      .channel(channelName)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'departures'
-      }, () => {
+        table: 'departures',
+        filter: branchId ? `branch_id=eq.${branchId}` : undefined
+      }, (payload) => {
+        console.log('Real-time departure change:', payload);
         fetchDepartures();
       })
       .subscribe();
@@ -150,7 +153,7 @@ export const useDepartures = (branchId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [branchId]);
 
   return {
     departures,
