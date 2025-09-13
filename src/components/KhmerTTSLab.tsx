@@ -144,24 +144,56 @@ const KhmerTTSLab = () => {
         }
       });
 
-      if (response.error) throw response.error;
+      console.log('TTS Response:', response);
 
-      const audioBlob = new Blob(
-        [Uint8Array.from(atob(response.data.audioContent), c => c.charCodeAt(0))], 
-        { type: 'audio/mp3' }
-      );
-      const url = URL.createObjectURL(audioBlob);
-      setAudioUrl(url);
+      // Check for errors more comprehensively
+      if (response.error) {
+        console.error('Supabase function error:', response.error);
+        throw new Error(response.error.message || 'Function execution failed');
+      }
 
-      toast({
-        title: "Success",
-        description: "Audio generated successfully",
-      });
+      // Validate response data structure
+      if (!response.data) {
+        console.error('No data in response:', response);
+        throw new Error('No data returned from TTS function');
+      }
+
+      if (!response.data.audioContent) {
+        console.error('No audioContent in response data:', response.data);
+        throw new Error('No audio content returned from TTS function');
+      }
+
+      // Validate base64 string
+      const audioContent = response.data.audioContent;
+      if (typeof audioContent !== 'string' || audioContent.length === 0) {
+        console.error('Invalid audioContent:', audioContent);
+        throw new Error('Invalid audio content format');
+      }
+
+      console.log('Audio content length:', audioContent.length);
+
+      // Create audio blob from base64
+      try {
+        const audioBlob = new Blob(
+          [Uint8Array.from(atob(audioContent), c => c.charCodeAt(0))], 
+          { type: 'audio/mp3' }
+        );
+        const url = URL.createObjectURL(audioBlob);
+        setAudioUrl(url);
+
+        toast({
+          title: "Success",
+          description: "Audio generated successfully",
+        });
+      } catch (blobError) {
+        console.error('Error creating audio blob:', blobError);
+        throw new Error('Failed to create audio from response data');
+      }
     } catch (error) {
       console.error('Error generating audio:', error);
       toast({
         title: "Error",
-        description: "Failed to generate audio",
+        description: error instanceof Error ? error.message : "Failed to generate audio",
         variant: "destructive",
       });
     } finally {
