@@ -25,13 +25,74 @@ interface TranslatedFleetType {
 
 export const useTranslatedData = () => {
   const { currentLanguage } = useTranslation();
-  const [translatedDestinations, setTranslatedDestinations] = useState<TranslatedDestination[]>([]);
-  const [translatedStatuses, setTranslatedStatuses] = useState<TranslatedStatus[]>([]);
-  const [translatedFleetTypes, setTranslatedFleetTypes] = useState<TranslatedFleetType[]>([]);
+  const [dbDestinations, setDbDestinations] = useState<Record<string, Record<Language, string>>>({});
+  const [dbStatuses, setDbStatuses] = useState<Record<string, Record<Language, string>>>({});
+  const [dbFleetTypes, setDbFleetTypes] = useState<Record<string, Record<Language, string>>>({});
 
-  // For now, we'll use hardcoded translations since we don't have translation tables
-  // In a real implementation, you would fetch from database tables
+  // Fetch translations from database
+  useEffect(() => {
+    const fetchTranslations = async () => {
+      try {
+        // Fetch destination translations
+        const { data: destinations } = await supabase
+          .from('destination_translations')
+          .select('destination_key, english, khmer, chinese');
+
+        const destMap: Record<string, Record<Language, string>> = {};
+        destinations?.forEach(item => {
+          destMap[item.destination_key] = {
+            english: item.english,
+            khmer: item.khmer,
+            chinese: item.chinese
+          };
+        });
+        setDbDestinations(destMap);
+
+        // Fetch status translations
+        const { data: statuses } = await supabase
+          .from('status_translations')
+          .select('status_key, english, khmer, chinese');
+
+        const statusMap: Record<string, Record<Language, string>> = {};
+        statuses?.forEach(item => {
+          statusMap[item.status_key] = {
+            english: item.english,
+            khmer: item.khmer,
+            chinese: item.chinese
+          };
+        });
+        setDbStatuses(statusMap);
+
+        // Fetch fleet type translations
+        const { data: fleetTypes } = await supabase
+          .from('fleet_type_translations')
+          .select('fleet_type_key, english, khmer, chinese');
+
+        const fleetMap: Record<string, Record<Language, string>> = {};
+        fleetTypes?.forEach(item => {
+          fleetMap[item.fleet_type_key] = {
+            english: item.english,
+            khmer: item.khmer,
+            chinese: item.chinese
+          };
+        });
+        setDbFleetTypes(fleetMap);
+
+      } catch (error) {
+        console.error('Error fetching translations:', error);
+      }
+    };
+
+    fetchTranslations();
+  }, []);
+
+  // Fallback hardcoded translations
   const getTranslatedDestination = (destination: string): string => {
+    // Try database first, fallback to hardcoded
+    if (dbDestinations[destination]?.[currentLanguage]) {
+      return dbDestinations[destination][currentLanguage];
+    }
+
     const destinationTranslations: Record<string, Record<Language, string>> = {
       'Phnom Penh': {
         english: 'Phnom Penh',
@@ -64,6 +125,11 @@ export const useTranslatedData = () => {
   };
 
   const getTranslatedStatus = (status: string): string => {
+    // Try database first, fallback to hardcoded
+    if (dbStatuses[status]?.[currentLanguage]) {
+      return dbStatuses[status][currentLanguage];
+    }
+
     const statusTranslations: Record<string, Record<Language, string>> = {
       'on-time': {
         english: 'ON-TIME',
@@ -91,6 +157,11 @@ export const useTranslatedData = () => {
   };
 
   const getTranslatedFleetType = (fleetType: string): string => {
+    // Try database first, fallback to hardcoded
+    if (dbFleetTypes[fleetType]?.[currentLanguage]) {
+      return dbFleetTypes[fleetType][currentLanguage];
+    }
+
     const fleetTypeTranslations: Record<string, Record<Language, string>> = {
       'VIP Van': {
         english: 'VIP Van',

@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import FleetManagement from "./FleetManagement";
 import OperatorSettings from "./OperatorSettings";
 import AnnouncementSystem from "./AnnouncementSystem";
+import KhmerTTSLab from "./KhmerTTSLab";
+import { TranslationManagement } from "./TranslationManagement";
 
 interface AdminPanelProps {
   branchId?: string;
@@ -421,7 +423,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="departures">Departure Management</TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
@@ -430,6 +432,9 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Volume2 className="w-4 h-4" />
             Announcement Settings
+          </TabsTrigger>
+          <TabsTrigger value="translations" className="flex items-center gap-2">
+            Translations
           </TabsTrigger>
         </TabsList>
         
@@ -937,19 +942,12 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           <FleetManagement operatorId={operatorId} />
         </TabsContent>
         
-        <TabsContent value="settings">
-          {operatorId ? (
-            <OperatorSettings operatorId={operatorId} />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Error</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>Operator ID is required to manage announcement settings.</p>
-              </CardContent>
-            </Card>
-          )}
+        <TabsContent value="settings" className="space-y-6">
+          <AnnouncementSystem />
+        </TabsContent>
+
+        <TabsContent value="translations" className="space-y-6">
+          <TranslationManagement />
         </TabsContent>
       </Tabs>
     </div>

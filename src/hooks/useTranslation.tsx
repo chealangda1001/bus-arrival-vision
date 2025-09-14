@@ -1,165 +1,157 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export type Language = 'english' | 'khmer' | 'chinese';
 
 interface TranslationContextType {
   currentLanguage: Language;
   t: (key: string, params?: Record<string, string>) => string;
-  setLanguage: (language: Language) => void;
+  setLanguage: (lang: Language) => void;
 }
 
 const TranslationContext = createContext<TranslationContextType | undefined>(undefined);
 
-// Translation data
-const translations = {
-  english: {
-    'bus_departures': 'Bus Departures',
-    'loading_departures': 'Loading departures...',
-    'branch_not_found': 'Branch not found',
-    'destination': 'Destination:',
-    'fleet_type': 'Fleet Type:',
-    'plate': 'Plate:',
-    'departure_time': 'Departure Time:',
-    'status': 'Status:',
-    'no_departures': 'No departures scheduled',
-    'estimated': 'Est:',
-    'now': 'Now',
-    'minutes': 'mn',
-    'hours': 'h',
-    
-    // Status translations
-    'status_ontime': 'ON-TIME',
-    'status_delayed': 'DELAYED',
-    'status_boarding': 'BOARDING',
-    'status_departed': 'DEPARTED',
-    
-    // Fleet types
-    'fleet_vip_van': 'VIP Van',
-    'fleet_bus': 'Bus',
-    'fleet_sleeping_bus': 'Sleeping Bus',
-    
-    // Days of week
-    'monday': 'Monday',
-    'tuesday': 'Tuesday',
-    'wednesday': 'Wednesday',
-    'thursday': 'Thursday',
-    'friday': 'Friday',
-    'saturday': 'Saturday',
-    'sunday': 'Sunday',
-    
-    // Months
-    'january': 'January',
-    'february': 'February',
-    'march': 'March',
-    'april': 'April',
-    'may': 'May',
-    'june': 'June',
-    'july': 'July',
-    'august': 'August',
-    'september': 'September',
-    'october': 'October',
-    'november': 'November',
-    'december': 'December',
+// Fallback translations in case database is not available
+const fallbackTranslations: Record<string, Record<Language, string>> = {
+  'departure_board': {
+    english: 'DEPARTURE BOARD',
+    khmer: 'ក្តារចេញដំណើរ',
+    chinese: '发车信息板'
   },
-  
-  khmer: {
-    'bus_departures': 'កាលវិភាគឡានក្រុង',
-    'loading_departures': 'កំពុងដោះស្រាយកាលវិភាគ...',
-    'branch_not_found': 'រកមិនឃើញសាខា',
-    'destination': 'ទិសដៅ:',
-    'fleet_type': 'ប្រភេទយានជំនិះ:',
-    'plate': 'លេខផ្ទាំង:',
-    'departure_time': 'ម៉ោងចេញ:',
-    'status': 'ស្ថានភាព:',
-    'no_departures': 'មិនមានកាលវិភាគចេញ',
-    'estimated': 'ប៉ាន់ស្មាន:',
-    'now': 'ឥឡូវ',
-    'minutes': 'នាទី',
-    'hours': 'ម៉ោង',
-    
-    // Status translations
-    'status_ontime': 'ទាន់ពេល',
-    'status_delayed': 'យឺតយ៉ាវ',
-    'status_boarding': 'កំពុងឡើង',
-    'status_departed': 'ចេញហើយ',
-    
-    // Fleet types
-    'fleet_vip_van': 'វីអាយភីវ៉ាន់',
-    'fleet_bus': 'ឡានក្រុង',
-    'fleet_sleeping_bus': 'ឡានក្រុងគេង',
-    
-    // Days of week
-    'monday': 'ច័ន្ទ',
-    'tuesday': 'អង្គារ',
-    'wednesday': 'ពុធ',
-    'thursday': 'ព្រហស្បតិ៍',
-    'friday': 'សុក្រ',
-    'saturday': 'សៅរ៍',
-    'sunday': 'អាទិត្យ',
-    
-    // Months
-    'january': 'មករា',
-    'february': 'កុម្ភៈ',
-    'march': 'មីនា',
-    'april': 'មេសា',
-    'may': 'ឧសភា',
-    'june': 'មិថុនា',
-    'july': 'កក្កដា',
-    'august': 'សីហា',
-    'september': 'កញ្ញា',
-    'october': 'តុលា',
-    'november': 'វិច្ឆិកា',
-    'december': 'ធ្នូ',
+  'destination': {
+    english: 'DESTINATION',
+    khmer: 'ទិសដៅ',
+    chinese: '目的地'
   },
-  
-  chinese: {
-    'bus_departures': '巴士班次',
-    'loading_departures': '正在加载班次...',
-    'branch_not_found': '找不到分支',
-    'destination': '目的地:',
-    'fleet_type': '车型:',
-    'plate': '车牌:',
-    'departure_time': '出发时间:',
-    'status': '状态:',
-    'no_departures': '暂无班次',
-    'estimated': '预计:',
-    'now': '现在',
-    'minutes': '分钟', 
-    'hours': '小时',
-    
-    // Status translations
-    'status_ontime': '准时',
-    'status_delayed': '延误',
-    'status_boarding': '登车中',
-    'status_departed': '已出发',
-    
-    // Fleet types
-    'fleet_vip_van': 'VIP面包车',
-    'fleet_bus': '巴士',
-    'fleet_sleeping_bus': '卧铺巴士',
-    
-    // Days of week
-    'monday': '星期一',
-    'tuesday': '星期二',
-    'wednesday': '星期三',
-    'thursday': '星期四',
-    'friday': '星期五',
-    'saturday': '星期六',
-    'sunday': '星期日',
-    
-    // Months
-    'january': '一月',
-    'february': '二月',
-    'march': '三月',
-    'april': '四月',
-    'may': '五月',
-    'june': '六月',
-    'july': '七月',
-    'august': '八月',
-    'september': '九月',
-    'october': '十月',
-    'november': '十一月',
-    'december': '十二月',
+  'departure_time': {
+    english: 'DEPARTURE',
+    khmer: 'ពេលចេញ',
+    chinese: '发车时间'
+  },
+  'plate_number': {
+    english: 'PLATE',
+    khmer: 'ផ្ទាំង',
+    chinese: '车牌'
+  },
+  'fleet_type': {
+    english: 'TYPE',
+    khmer: 'ប្រភេទ',
+    chinese: '车型'
+  },
+  'status': {
+    english: 'STATUS',
+    khmer: 'ស្ថានភាព',
+    chinese: '状态'
+  },
+  'time': {
+    english: 'Time',
+    khmer: 'ពេលវេលា',
+    chinese: '时间'
+  },
+  'monday': {
+    english: 'Monday',
+    khmer: 'ចន្ទ',
+    chinese: '周一'
+  },
+  'tuesday': {
+    english: 'Tuesday',
+    khmer: 'អង្គារ',
+    chinese: '周二'
+  },
+  'wednesday': {
+    english: 'Wednesday',
+    khmer: 'ពុធ',
+    chinese: '周三'
+  },
+  'thursday': {
+    english: 'Thursday',
+    khmer: 'ព្រហស្បតិ៍',
+    chinese: '周四'
+  },
+  'friday': {
+    english: 'Friday',
+    khmer: 'សុក្រ',
+    chinese: '周五'
+  },
+  'saturday': {
+    english: 'Saturday',
+    khmer: 'សៅរ៍',
+    chinese: '周六'
+  },
+  'sunday': {
+    english: 'Sunday',
+    khmer: 'អាទិត្យ',
+    chinese: '周日'
+  },
+  'january': {
+    english: 'January',
+    khmer: 'មករា',
+    chinese: '一月'
+  },
+  'february': {
+    english: 'February',
+    khmer: 'កុម្ភៈ',
+    chinese: '二月'
+  },
+  'march': {
+    english: 'March',
+    khmer: 'មីនា',
+    chinese: '三月'
+  },
+  'april': {
+    english: 'April',
+    khmer: 'មេសា',
+    chinese: '四月'
+  },
+  'may': {
+    english: 'May',
+    khmer: 'ឧសភា',
+    chinese: '五月'
+  },
+  'june': {
+    english: 'June',
+    khmer: 'មិថុនា',
+    chinese: '六月'
+  },
+  'july': {
+    english: 'July',
+    khmer: 'កក្កដា',
+    chinese: '七月'
+  },
+  'august': {
+    english: 'August',
+    khmer: 'សីហា',
+    chinese: '八月'
+  },
+  'september': {
+    english: 'September',
+    khmer: 'កញ្ញា',
+    chinese: '九月'
+  },
+  'october': {
+    english: 'October',
+    khmer: 'តុលា',
+    chinese: '十月'
+  },
+  'november': {
+    english: 'November',
+    khmer: 'វិច្ឆិកា',
+    chinese: '十一月'
+  },
+  'december': {
+    english: 'December',
+    khmer: 'ធ្នូ',
+    chinese: '十二月'
+  },
+  'current_time': {
+    english: 'Current Time',
+    khmer: 'ពេលវេលាបច្ចុប្បន្ន',
+    chinese: '当前时间'
+  },
+  'powered_by': {
+    english: 'Powered by TTS Lab',
+    khmer: 'បើកដំណើរការដោយ TTS Lab',
+    chinese: '由TTS实验室提供支持'
   }
 };
 
@@ -169,6 +161,38 @@ interface TranslationProviderProps {
 
 export const TranslationProvider = ({ children }: TranslationProviderProps) => {
   const [currentLanguage, setCurrentLanguage] = useState<Language>('english');
+  const [dbTranslations, setDbTranslations] = useState<Record<string, Record<Language, string>>>({});
+
+  // Fetch translations from database
+  useEffect(() => {
+    const fetchTranslations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('static_translations')
+          .select('translation_key, english, khmer, chinese');
+
+        if (error) {
+          console.error('Error fetching translations:', error);
+          return;
+        }
+
+        const translationsMap: Record<string, Record<Language, string>> = {};
+        data?.forEach(item => {
+          translationsMap[item.translation_key] = {
+            english: item.english,
+            khmer: item.khmer,
+            chinese: item.chinese
+          };
+        });
+
+        setDbTranslations(translationsMap);
+      } catch (error) {
+        console.error('Error loading translations:', error);
+      }
+    };
+
+    fetchTranslations();
+  }, []);
 
   // Auto-switch languages every 15 seconds
   useEffect(() => {
@@ -178,26 +202,27 @@ export const TranslationProvider = ({ children }: TranslationProviderProps) => {
     const interval = setInterval(() => {
       currentIndex = (currentIndex + 1) % languages.length;
       setCurrentLanguage(languages[currentIndex]);
-    }, 15000); // 15 seconds
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
 
   const t = (key: string, params?: Record<string, string>): string => {
-    let translation = translations[currentLanguage][key as keyof typeof translations['english']] || key;
+    // Try database translations first, fallback to hardcoded ones
+    const translation = dbTranslations[key]?.[currentLanguage] || 
+                       fallbackTranslations[key]?.[currentLanguage] || 
+                       key;
     
-    // Replace parameters if provided
-    if (params) {
-      Object.entries(params).forEach(([param, value]) => {
-        translation = translation.replace(`{${param}}`, value);
-      });
-    }
+    if (!params) return translation;
     
-    return translation;
+    // Replace parameters in the translation
+    return Object.entries(params).reduce((text, [param, value]) => {
+      return text.replace(new RegExp(`{${param}}`, 'g'), value);
+    }, translation);
   };
 
-  const setLanguage = (language: Language) => {
-    setCurrentLanguage(language);
+  const setLanguage = (lang: Language) => {
+    setCurrentLanguage(lang);
   };
 
   return (

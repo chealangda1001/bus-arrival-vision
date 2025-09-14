@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volume2, Users, Shield } from "lucide-react";
 import FleetManagement from "./FleetManagement";
 import KhmerTTSLab from "./KhmerTTSLab";
+import AnnouncementSystem from "./AnnouncementSystem";
+import { TranslationManagement } from "./TranslationManagement";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -1750,8 +1752,12 @@ const SuperAdminPanel = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="khmer-tts">
+        <TabsContent value="tts-lab" className="space-y-6">
           <KhmerTTSLab />
+        </TabsContent>
+
+        <TabsContent value="translations" className="space-y-6">
+          <TranslationManagement />
         </TabsContent>
       </Tabs>
     </div>

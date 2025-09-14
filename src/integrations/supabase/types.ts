@@ -162,6 +162,69 @@ export type Database = {
           },
         ]
       }
+      destination_translations: {
+        Row: {
+          chinese: string
+          created_at: string
+          destination_key: string
+          english: string
+          id: string
+          khmer: string
+          operator_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          chinese: string
+          created_at?: string
+          destination_key: string
+          english: string
+          id?: string
+          khmer: string
+          operator_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chinese?: string
+          created_at?: string
+          destination_key?: string
+          english?: string
+          id?: string
+          khmer?: string
+          operator_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fleet_type_translations: {
+        Row: {
+          chinese: string
+          created_at: string
+          english: string
+          fleet_type_key: string
+          id: string
+          khmer: string
+          updated_at: string
+        }
+        Insert: {
+          chinese: string
+          created_at?: string
+          english: string
+          fleet_type_key: string
+          id?: string
+          khmer: string
+          updated_at?: string
+        }
+        Update: {
+          chinese?: string
+          created_at?: string
+          english?: string
+          fleet_type_key?: string
+          id?: string
+          khmer?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fleets: {
         Row: {
           capacity: number | null
@@ -394,6 +457,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      static_translations: {
+        Row: {
+          category: string
+          chinese: string
+          created_at: string
+          english: string
+          id: string
+          khmer: string
+          translation_key: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          chinese: string
+          created_at?: string
+          english: string
+          id?: string
+          khmer: string
+          translation_key: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          chinese?: string
+          created_at?: string
+          english?: string
+          id?: string
+          khmer?: string
+          translation_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      status_translations: {
+        Row: {
+          chinese: string
+          created_at: string
+          english: string
+          id: string
+          khmer: string
+          status_key: string
+          updated_at: string
+        }
+        Insert: {
+          chinese: string
+          created_at?: string
+          english: string
+          id?: string
+          khmer: string
+          status_key: string
+          updated_at?: string
+        }
+        Update: {
+          chinese?: string
+          created_at?: string
+          english?: string
+          id?: string
+          khmer?: string
+          status_key?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       voice_preferences: {
         Row: {
