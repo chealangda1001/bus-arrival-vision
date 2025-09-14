@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { useDepartures } from "@/hooks/useDepartures";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volume2 } from "lucide-react";
+import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volume2, Users, Shield } from "lucide-react";
 import FleetManagement from "./FleetManagement";
 import KhmerTTSLab from "./KhmerTTSLab";
 
@@ -74,6 +74,24 @@ const SuperAdminPanel = () => {
     estimated_time: "",
     fleet_type: "Bus" as const,
     fleet_image_url: ""
+  });
+
+  // Admin Account Management State
+  const [adminAccounts, setAdminAccounts] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<string | null>(null);
+  const [newAdmin, setNewAdmin] = useState({
+    username: "",
+    password: "",
+    operator_id: "",
+    role: "operator_admin" as "operator_admin" | "super_admin"
+  });
+  const [editAdmin, setEditAdmin] = useState({
+    username: "",
+    password: "",
+    operator_id: "",
+    role: "operator_admin" as "operator_admin" | "super_admin"
   });
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,6 +564,178 @@ const SuperAdminPanel = () => {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   };
 
+  // Admin Account Management Functions
+  const fetchAdminAccounts = async () => {
+    setLoadingAdmins(true);
+    try {
+      const { data, error } = await supabase
+        .from('operator_admins')
+        .select(`
+          *,
+          operators (
+            name,
+            slug
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAdminAccounts(data || []);
+    } catch (error) {
+      console.error('Error fetching admin accounts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch admin accounts",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newAdmin.username || !newAdmin.password || !newAdmin.operator_id) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('operator_admins')
+        .insert({
+          username: newAdmin.username,
+          password_hash: newAdmin.password,
+          operator_id: newAdmin.operator_id,
+          role: newAdmin.role
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Admin account "${newAdmin.username}" created successfully`,
+      });
+      
+      setNewAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+      setShowCreateAdmin(false);
+      fetchAdminAccounts();
+    } catch (error) {
+      console.error('Create admin error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create admin account",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditAdmin = (admin: any) => {
+    setEditingAdmin(admin.id);
+    setEditAdmin({
+      username: admin.username,
+      password: "",
+      operator_id: admin.operator_id,
+      role: admin.role
+    });
+  };
+
+  const handleUpdateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editAdmin.username || !editAdmin.operator_id || !editingAdmin) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updateData: any = {
+        username: editAdmin.username,
+        operator_id: editAdmin.operator_id,
+        role: editAdmin.role,
+        updated_at: new Date().toISOString()
+      };
+
+      // Only update password if provided
+      if (editAdmin.password) {
+        updateData.password_hash = editAdmin.password;
+      }
+
+      const { error } = await supabase
+        .from('operator_admins')
+        .update(updateData)
+        .eq('id', editingAdmin);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Admin account "${editAdmin.username}" updated successfully`,
+      });
+      
+      setEditingAdmin(null);
+      setEditAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+      fetchAdminAccounts();
+    } catch (error) {
+      console.error('Update admin error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update admin account",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAdmin = async (adminId: string, username: string) => {
+    if (!confirm(`Are you sure you want to delete admin account "${username}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('operator_admins')
+        .delete()
+        .eq('id', adminId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Admin account "${username}" deleted successfully`,
+      });
+      
+      fetchAdminAccounts();
+    } catch (error) {
+      console.error('Delete admin error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete admin account",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelAdminEdit = () => {
+    setEditingAdmin(null);
+    setEditAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+    setShowCreateAdmin(false);
+    setNewAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+  };
+
+  // Initialize admin accounts on component mount
+  useEffect(() => {
+    fetchAdminAccounts();
+  }, []);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -570,8 +760,12 @@ const SuperAdminPanel = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="operators" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="operators">Operator Management</TabsTrigger>
+          <TabsTrigger value="admins" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Admin Accounts
+          </TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
             Fleet Management
@@ -1281,6 +1475,221 @@ const SuperAdminPanel = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="admins" className="space-y-6">
+          {/* Admin Accounts Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-text-display">Admin Account Management</h3>
+            <Button 
+              onClick={() => setShowCreateAdmin(!showCreateAdmin)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create Admin Account
+            </Button>
+          </div>
+
+          {/* Create Admin Form */}
+          {showCreateAdmin && (
+            <Card className="bg-accent/5">
+              <CardHeader>
+                <CardTitle>Create New Admin Account</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateAdmin} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="admin-username">Username *</Label>
+                      <Input
+                        id="admin-username"
+                        value={newAdmin.username}
+                        onChange={(e) => setNewAdmin(prev => ({ ...prev, username: e.target.value }))}
+                        placeholder="admin_username"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-password">Password *</Label>
+                      <Input
+                        id="admin-password"
+                        type="password"
+                        value={newAdmin.password}
+                        onChange={(e) => setNewAdmin(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-operator">Operator *</Label>
+                      <Select
+                        value={newAdmin.operator_id}
+                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, operator_id: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select operator" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operators.map((operator) => (
+                            <SelectItem key={operator.id} value={operator.id}>
+                              {operator.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-role">Role *</Label>
+                      <Select
+                        value={newAdmin.role}
+                        onValueChange={(value: "operator_admin" | "super_admin") => setNewAdmin(prev => ({ ...prev, role: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="operator_admin">Operator Admin</SelectItem>
+                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button type="submit">Create Admin Account</Button>
+                    <Button type="button" variant="outline" onClick={cancelAdminEdit}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Admin Accounts List */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Existing Admin Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAdmins ? (
+                <div className="text-center py-8 text-text-display/60">
+                  Loading admin accounts...
+                </div>
+              ) : adminAccounts.length === 0 ? (
+                <div className="text-center py-8 text-text-display/60">
+                  No admin accounts found
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {adminAccounts.map((admin) => (
+                    <Card key={admin.id} className="p-4">
+                      {editingAdmin === admin.id ? (
+                        <form onSubmit={handleUpdateAdmin} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="edit-admin-username">Username *</Label>
+                              <Input
+                                id="edit-admin-username"
+                                value={editAdmin.username}
+                                onChange={(e) => setEditAdmin(prev => ({ ...prev, username: e.target.value }))}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="edit-admin-password">New Password (leave blank to keep current)</Label>
+                              <Input
+                                id="edit-admin-password"
+                                type="password"
+                                value={editAdmin.password}
+                                onChange={(e) => setEditAdmin(prev => ({ ...prev, password: e.target.value }))}
+                                placeholder="Enter new password"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="edit-admin-operator">Operator *</Label>
+                              <Select
+                                value={editAdmin.operator_id}
+                                onValueChange={(value) => setEditAdmin(prev => ({ ...prev, operator_id: value }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select operator" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {operators.map((operator) => (
+                                    <SelectItem key={operator.id} value={operator.id}>
+                                      {operator.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="edit-admin-role">Role *</Label>
+                              <Select
+                                value={editAdmin.role}
+                                onValueChange={(value: "operator_admin" | "super_admin") => setEditAdmin(prev => ({ ...prev, role: value }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="operator_admin">Operator Admin</SelectItem>
+                                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button type="submit">Save Changes</Button>
+                            <Button type="button" variant="outline" onClick={cancelAdminEdit}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent/20">
+                              <Shield className="w-5 h-5 text-text-display/60" />
+                            </div>
+                            <div>
+                              <h4 className="text-lg font-semibold text-text-display">{admin.username}</h4>
+                              <p className="text-text-display/60">
+                                {admin.operators?.name} • {admin.role}
+                              </p>
+                              <p className="text-sm text-text-display/40">
+                                Created: {new Date(admin.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditAdmin(admin)}
+                            >
+                              <Edit2 className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteAdmin(admin.id, admin.username)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
         <TabsContent value="fleets">
