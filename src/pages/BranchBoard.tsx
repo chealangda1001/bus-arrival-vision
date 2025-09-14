@@ -4,10 +4,12 @@ import DepartureBoard from "@/components/DepartureBoard";
 import AnnouncementSystem from "@/components/AnnouncementSystem";
 import { useBranches } from "@/hooks/useBranches";
 import { type Departure } from "@/hooks/useDepartures";
+import { TranslationProvider, useTranslation } from "@/hooks/useTranslation";
 
-const BranchBoard = () => {
+const BranchBoardContent = () => {
   const { operatorSlug, branchSlug } = useParams();
   const { getBranchBySlug } = useBranches();
+  const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState("");
   const [currentAnnouncement, setCurrentAnnouncement] = useState<{ departure: Departure } | null>(null);
 
@@ -38,7 +40,7 @@ const BranchBoard = () => {
 
   if (!branch) {
     return <div className="min-h-screen bg-dashboard p-6 flex items-center justify-center">
-      <div className="text-text-display text-xl">Branch not found</div>
+      <div className="text-text-display text-xl">{t('branch_not_found')}</div>
     </div>;
   }
 
@@ -61,6 +63,14 @@ const BranchBoard = () => {
         />
       </div>
     </div>
+  );
+};
+
+const BranchBoard = () => {
+  return (
+    <TranslationProvider>
+      <BranchBoardContent />
+    </TranslationProvider>
   );
 };
 

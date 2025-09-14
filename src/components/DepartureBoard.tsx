@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, MapPin, Truck } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
+import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslatedData } from "@/hooks/useTranslatedData";
 
 interface DepartureBoardProps {
   currentTime: string;
@@ -12,6 +14,8 @@ interface DepartureBoardProps {
 
 const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoardProps) => {
   const { departures, loading } = useDepartures(branchId);
+  const { t, currentLanguage } = useTranslation();
+  const { getTranslatedDestination, getTranslatedStatus, getTranslatedFleetType } = useTranslatedData();
   const [announcedDepartures, setAnnouncedDepartures] = useState<Set<string>>(new Set());
 
   const calculateCountdown = (departureTime: string): string => {
@@ -28,12 +32,12 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
     const diff = departureDate.getTime() - now.getTime();
     const totalMinutes = Math.floor(diff / 60000);
     
-    if (totalMinutes <= 0) return "Now";
-    if (totalMinutes < 60) return `${totalMinutes}mn`;
+    if (totalMinutes <= 0) return t('now');
+    if (totalMinutes < 60) return `${totalMinutes}${t('minutes')}`;
     
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
-    return mins > 0 ? `${hrs}h ${mins}mn` : `${hrs}h`;
+    return mins > 0 ? `${hrs}${t('hours')} ${mins}${t('minutes')}` : `${hrs}${t('hours')}`;
   };
 
   const getStatusColor = (status: string): string => {
@@ -89,12 +93,12 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
       <div className="w-full space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-text-display">
-            Bus Departures
+            {t('bus_departures')}
           </h1>
           <p className="text-lg text-text-display/80">{currentTime}</p>
         </div>
         <div className="flex justify-center items-center py-12">
-          <div className="text-xl text-text-display/60">Loading departures...</div>
+          <div className="text-xl text-text-display/60">{t('loading_departures')}</div>
         </div>
       </div>
     );
@@ -105,15 +109,10 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
       {/* Header */}
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold text-text-display">
-          Bus Departures
+          {t('bus_departures')}
         </h1>
         <p className="text-lg text-text-display/80">
-          {new Date().toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })} • {currentTime}
+          {formatLocalizedDate(new Date(), currentLanguage)} • {currentTime}
         </p>
       </div>
 
@@ -168,8 +167,8 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   <div className="col-span-3">
                     <div className="space-y-2">
                       <div>
-                        <span className="text-sm text-text-display/60 font-medium">Destination:</span>
-                        <h3 className="text-xl font-bold text-text-display">{departure.destination}</h3>
+                        <span className="text-sm text-text-display/60 font-medium">{t('destination')}</span>
+                        <h3 className="text-xl font-bold text-text-display">{getTranslatedDestination(departure.destination)}</h3>
                       </div>
                     </div>
                   </div>
@@ -178,11 +177,11 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   <div className="col-span-2">
                     <div className="space-y-2">
                       <div>
-                        <span className="text-sm text-text-display/60 font-medium">Fleet Type:</span>
+                        <span className="text-sm text-text-display/60 font-medium">{t('fleet_type')}</span>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge className={getFleetTypeColor(departure.fleet_type)}>
                             <Truck className="w-4 h-4 mr-1" />
-                            {departure.fleet_type}
+                            {getTranslatedFleetType(departure.fleet_type)}
                           </Badge>
                         </div>
                       </div>
@@ -194,7 +193,7 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                     {departure.plate_number && (
                       <div className="space-y-2">
                         <div>
-                          <span className="text-sm text-text-display/60 font-medium">Plate:</span>
+                          <span className="text-sm text-text-display/60 font-medium">{t('plate')}</span>
                           <div className="text-text-display/80 font-medium">{departure.plate_number}</div>
                         </div>
                       </div>
@@ -205,13 +204,13 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   <div className="col-span-2">
                     <div className="space-y-2">
                       <div>
-                        <span className="text-sm text-text-display/60 font-medium">Departure Time:</span>
+                        <span className="text-sm text-text-display/60 font-medium">{t('departure_time')}</span>
                         <div className="flex items-center">
                           <Clock className="w-4 h-4 mr-1 text-text-display/60" />
                           <span className="text-lg font-bold text-text-display">{departure.departure_time}</span>
                         </div>
                         {departure.estimated_time && departure.status === "delayed" && (
-                          <div className="text-red-500 text-sm">Est: {departure.estimated_time}</div>
+                          <div className="text-red-500 text-sm">{t('estimated')} {departure.estimated_time}</div>
                         )}
                       </div>
                     </div>
@@ -220,10 +219,10 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                   {/* Status */}
                   <div className="col-span-2 flex justify-end">
                     <div className="text-right">
-                      <span className="text-sm text-text-display/60 font-medium">Status:</span>
+                      <span className="text-sm text-text-display/60 font-medium">{t('status')}</span>
                       <div className="mt-1 space-y-1">
                         <Badge className={getStatusColor(departure.status)}>
-                          {departure.status.toUpperCase()}
+                          {getTranslatedStatus(departure.status)}
                         </Badge>
                         {departure.status === "boarding" && (
                           <div className="text-sm font-medium text-text-display">
@@ -241,12 +240,32 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
         
         {departures.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-text-display/60 text-xl">No departures scheduled</p>
+            <p className="text-text-display/60 text-xl">{t('no_departures')}</p>
           </div>
         )}
       </div>
     </div>
   );
+  };
+
+// Helper function to format localized date
+const formatLocalizedDate = (date: Date, language: string): string => {
+  const days = {
+    english: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    khmer: ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'],
+    chinese: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  };
+
+  const months = {
+    english: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    khmer: ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'],
+    chinese: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月']
+  };
+
+  const dayName = days[language as keyof typeof days] ? days[language as keyof typeof days][date.getDay()] : days.english[date.getDay()];
+  const monthName = months[language as keyof typeof months] ? months[language as keyof typeof months][date.getMonth()] : months.english[date.getMonth()];
+  
+  return `${dayName}, ${monthName} ${date.getDate()}, ${date.getFullYear()}`;
 };
 
 export default DepartureBoard;
