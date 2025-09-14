@@ -21,11 +21,13 @@ interface AdminPanelProps {
 }
 
 const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
-  const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture } = useDepartures(branchId);
+  const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture, refetch } = useDepartures(branchId);
   const { fleets } = useFleets(operatorId);
   const { toast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
   const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
   const [newDeparture, setNewDeparture] = useState({
@@ -247,6 +249,134 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       ...prev,
       [departureId]: true
     }));
+  };
+
+  // Audio upload functionality
+  const handleAudioUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    departureId: string,
+    language: 'english' | 'khmer' | 'chinese'
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('audio/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an audio file (MP3, WAV, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingAudio(true);
+
+    try {
+      // Create unique file path
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${departureId}/${language}.${fileExtension}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('announcement-audio')
+        .upload(fileName, file, {
+          upsert: true, // Replace existing file
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('announcement-audio')
+        .getPublicUrl(fileName);
+
+      // Update departure record with audio URL
+      const columnName = `${language}_audio_url`;
+      const { error: updateError } = await supabase
+        .from('departures')
+        .update({ [columnName]: publicUrl })
+        .eq('id', departureId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast({
+        title: "Audio uploaded",
+        description: `${language.charAt(0).toUpperCase() + language.slice(1)} audio file uploaded successfully`,
+      });
+
+      // Refresh departures to show updated data
+      refetch();
+
+    } catch (error) {
+      console.error('Audio upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload audio file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleDeleteAudio = async (
+    departureId: string,
+    language: 'english' | 'khmer' | 'chinese'
+  ) => {
+    setUploadingAudio(true);
+
+    try {
+      // Get the current file path from the database
+      const { data: departure } = await supabase
+        .from('departures')
+        .select(`${language}_audio_url`)
+        .eq('id', departureId)
+        .single();
+
+      if (departure && departure[`${language}_audio_url`]) {
+        // Extract filename from URL for deletion
+        const fileName = `${departureId}/${language}.mp3`; // Assuming mp3 for simplicity
+
+        // Delete from storage
+        await supabase.storage
+          .from('announcement-audio')
+          .remove([fileName]);
+      }
+
+      // Update database to remove URL
+      const columnName = `${language}_audio_url`;
+      const { error: updateError } = await supabase
+        .from('departures')
+        .update({ [columnName]: null })
+        .eq('id', departureId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast({
+        title: "Audio deleted",
+        description: `${language.charAt(0).toUpperCase() + language.slice(1)} audio file deleted`,
+      });
+
+      // Refresh departures
+      refetch();
+
+    } catch (error) {
+      console.error('Audio deletion error:', error);
+      toast({
+        title: "Deletion failed",
+        description: "Failed to delete audio file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAudio(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -558,6 +688,25 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                             </div>
                           </div>
                           
+                          {/* Audio Status Indicators */}
+                          <div className="text-left">
+                            <span className="text-xs text-text-display/60 font-medium">Audio Files:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {departure.english_audio_url && (
+                                <Badge variant="secondary" className="text-xs">EN</Badge>
+                              )}
+                              {departure.khmer_audio_url && (
+                                <Badge variant="secondary" className="text-xs">KH</Badge>
+                              )}
+                              {departure.chinese_audio_url && (
+                                <Badge variant="secondary" className="text-xs">CN</Badge>
+                              )}
+                              {!departure.english_audio_url && !departure.khmer_audio_url && !departure.chinese_audio_url && (
+                                <Badge variant="outline" className="text-xs">AI Voice</Badge>
+                              )}
+                            </div>
+                          </div>
+                          
                           {/* Admin Controls */}
                           {editMode && (
                             <div className="flex flex-col gap-2">
@@ -572,6 +721,16 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                                 >
                                   <Play className="w-4 h-4 mr-1" />
                                   Play
+                                </Button>
+                                
+                                {/* Upload Audio Button */}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setUploadingAudioForDeparture(departure.id)}
+                                  title="Upload custom audio files"
+                                >
+                                  <Volume2 className="w-4 h-4" />
                                 </Button>
                                 
                                 {/* Edit Button */}
@@ -617,6 +776,111 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Audio Upload Section */}
+                    {uploadingAudioForDeparture === departure.id && (
+                      <div className="mt-6 pt-4 border-t border-border">
+                        <div className="space-y-4">
+                          <h4 className="text-lg font-semibold text-text-display">Upload Custom Audio Files</h4>
+                          <p className="text-sm text-text-display/60">
+                            Upload MP3 files for each language. These will be used instead of AI-generated voice.
+                          </p>
+                          
+                          <div className="grid grid-cols-3 gap-4">
+                            {/* English Audio Upload */}
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">English</Label>
+                              <div className="space-y-2">
+                                <Input
+                                  type="file"
+                                  accept="audio/mp3,audio/mpeg"
+                                  onChange={(e) => handleAudioUpload(e, departure.id, 'english')}
+                                  disabled={uploadingAudio}
+                                  className="text-sm"
+                                />
+                                {departure.english_audio_url && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-green-600">✓ Uploaded</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteAudio(departure.id, 'english')}
+                                      className="text-xs h-6"
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Khmer Audio Upload */}
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Khmer</Label>
+                              <div className="space-y-2">
+                                <Input
+                                  type="file"
+                                  accept="audio/mp3,audio/mpeg"
+                                  onChange={(e) => handleAudioUpload(e, departure.id, 'khmer')}
+                                  disabled={uploadingAudio}
+                                  className="text-sm"
+                                />
+                                {departure.khmer_audio_url && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-green-600">✓ Uploaded</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteAudio(departure.id, 'khmer')}
+                                      className="text-xs h-6"
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Chinese Audio Upload */}
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Chinese</Label>
+                              <div className="space-y-2">
+                                <Input
+                                  type="file"
+                                  accept="audio/mp3,audio/mpeg"
+                                  onChange={(e) => handleAudioUpload(e, departure.id, 'chinese')}
+                                  disabled={uploadingAudio}
+                                  className="text-sm"
+                                />
+                                {departure.chinese_audio_url && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-green-600">✓ Uploaded</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteAudio(departure.id, 'chinese')}
+                                      className="text-xs h-6"
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setUploadingAudioForDeparture(null)}
+                            >
+                              Close
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Manual Announcement System */}
                     {manualAnnouncements[departure.id] && (

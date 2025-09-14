@@ -12,6 +12,9 @@ export interface Departure {
   estimated_time?: string;
   fleet_type: "VIP Van" | "Bus" | "Sleeping Bus";
   fleet_image_url?: string;
+  english_audio_url?: string;
+  khmer_audio_url?: string;
+  chinese_audio_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -161,6 +164,6 @@ export const useDepartures = (branchId?: string) => {
     addDeparture,
     updateDepartureStatus,
     deleteDeparture,
-    refetch: fetchDepartures
+    refetch: fetchDepartures,
   };
 };

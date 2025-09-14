@@ -96,18 +96,50 @@ export default function AnnouncementSystem({
       const languages: ('english' | 'khmer' | 'chinese')[] = ['english', 'khmer', 'chinese'];
       const repeatCount = settings.announcement_repeat_count || 3;
       
-      // Pre-generate all audio files
-      const audioPromises: Promise<{ lang: string; audioData: string }>[] = [];
+      // Check for uploaded MP3 files vs AI generation
+      const audioPromises: Promise<{ lang: string; audioData: string; source: 'mp3' | 'ai' }>[] = [];
       
       for (const lang of languages) {
-        const text = generateAnnouncementText(script[lang], departure);
-        audioPromises.push(
-          generateAudio(text, lang).then(audioData => ({ lang, audioData }))
-        );
+        const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
+        const uploadedAudioUrl = departure[audioUrlKey];
+        
+        if (uploadedAudioUrl && typeof uploadedAudioUrl === 'string') {
+          // Use uploaded MP3 file
+          audioPromises.push(
+            fetch(uploadedAudioUrl)
+              .then(response => response.arrayBuffer())
+              .then(arrayBuffer => {
+                const base64 = btoa(
+                  new Uint8Array(arrayBuffer).reduce(
+                    (data, byte) => data + String.fromCharCode(byte),
+                    ''
+                  )
+                );
+                return { lang, audioData: base64, source: 'mp3' as const };
+              })
+              .catch(error => {
+                console.error(`Failed to load MP3 for ${lang}:`, error);
+                // Fallback to AI generation
+                const text = generateAnnouncementText(script[lang], departure);
+                return generateAudio(text, lang).then(audioData => ({ lang, audioData, source: 'ai' as const }));
+              })
+          );
+        } else {
+          // Fallback to AI generation
+          const text = generateAnnouncementText(script[lang], departure);
+          audioPromises.push(
+            generateAudio(text, lang).then(audioData => ({ lang, audioData, source: 'ai' as const }))
+          );
+        }
       }
       
       const audioResults = await Promise.all(audioPromises);
       setIsGenerating(false);
+      
+      // Log which audio sources are being used
+      audioResults.forEach(({ lang, source }) => {
+        console.log(`Using ${source} audio for ${lang}`);
+      });
       
       // Play announcements in sequence for specified repeat count
       for (let repeat = 1; repeat <= repeatCount; repeat++) {
@@ -212,6 +244,26 @@ export default function AnnouncementSystem({
       </div>
       
       <div className="space-y-3">
+        {/* Audio Source Indicators */}
+        <div className="flex justify-center gap-4 mb-4">
+          {(['english', 'khmer', 'chinese'] as const).map((lang) => {
+            const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
+            const hasCustomAudio = departure[audioUrlKey];
+            return (
+              <div key={lang} className="text-center">
+                <div className={`px-2 py-1 rounded text-xs ${
+                  hasCustomAudio ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {lang.toUpperCase()}
+                </div>
+                <div className="text-xs text-text-display/60 mt-1">
+                  {hasCustomAudio ? 'Custom MP3' : 'AI Voice'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
         <div className="text-center mb-4">
           <h2 className="text-2xl font-bold text-text-display mb-2">
             {departure.fleet_type} - {departure.destination}
