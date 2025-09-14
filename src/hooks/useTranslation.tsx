@@ -13,6 +13,11 @@ const TranslationContext = createContext<TranslationContextType | undefined>(und
 
 // Fallback translations in case database is not available
 const fallbackTranslations: Record<string, Record<Language, string>> = {
+  'bus_departures': {
+    english: 'Bus Departures',
+    khmer: 'ការចេញដំណើររបស់ឡានក្រុង',
+    chinese: '巴士发车时刻'
+  },
   'departure_board': {
     english: 'DEPARTURE BOARD',
     khmer: 'ក្តារចេញដំណើរ',
@@ -152,6 +157,41 @@ const fallbackTranslations: Record<string, Record<Language, string>> = {
     english: 'Powered by TTS Lab',
     khmer: 'បើកដំណើរការដោយ TTS Lab',
     chinese: '由TTS实验室提供支持'
+  },
+  'loading_departures': {
+    english: 'Loading departures...',
+    khmer: 'កំពុងផ្ទុកការចេញដំណើរ...',
+    chinese: '加载出发信息...'
+  },
+  'now': {
+    english: 'Now',
+    khmer: 'ឥឡូវ',
+    chinese: '现在'
+  },
+  'minutes': {
+    english: 'min',
+    khmer: 'នាទី',
+    chinese: '分钟'
+  },
+  'hours': {
+    english: 'h',
+    khmer: 'ម៉ោង',
+    chinese: '小时'
+  },
+  'plate': {
+    english: 'Plate',
+    khmer: 'ផ្ទាំង',
+    chinese: '车牌'
+  },
+  'estimated': {
+    english: 'Est.',
+    khmer: 'ប៉ាន់ស្មាន',
+    chinese: '预计'
+  },
+  'no_departures': {
+    english: 'No departures scheduled',
+    khmer: 'គ្មានការចេញដំណើរកំណត់ពេល',
+    chinese: '暂无班次安排'
   }
 };
 
