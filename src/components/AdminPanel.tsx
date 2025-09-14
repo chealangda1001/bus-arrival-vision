@@ -26,7 +26,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const { toast } = useToast();
   
   // State variables
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
@@ -133,7 +134,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
     await addDeparture(departureData);
     
-    // Reset form
+    // Reset form and hide it
     setNewDeparture({
       destination: "",
       departure_time: "",
@@ -144,6 +145,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       fleet_type: "Bus",
       fleet_image_url: ""
     });
+    setShowAddForm(false);
   };
 
   const handleEditDeparture = (departure: Departure) => {
@@ -434,13 +436,27 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         <TabsContent value="departures" className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Departure Management</h3>
+            {editMode && !showAddForm && (
+              <Button onClick={() => setShowAddForm(true)}>
+                Add New Departure
+              </Button>
+            )}
           </div>
 
-      {/* Add New Departure Form */}
-      {editMode && (
+          {/* Add New Departure Form */}
+          {editMode && showAddForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Add New Departure</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>Add New Departure</CardTitle>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowAddForm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAddDeparture} className="grid grid-cols-2 gap-4">
