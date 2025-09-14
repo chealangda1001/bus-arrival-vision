@@ -72,9 +72,11 @@ const AuthPage = () => {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className={`grid w-full ${profile?.role === 'super_admin' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                {profile?.role === 'super_admin' && (
+                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                )}
               </TabsList>
               
               <TabsContent value="signin">
