@@ -24,6 +24,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture, refetch } = useDepartures(branchId);
   const { fleets } = useFleets(operatorId);
   const { toast } = useToast();
+  
+  // State variables
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
