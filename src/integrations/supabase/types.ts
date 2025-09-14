@@ -96,42 +96,51 @@ export type Database = {
       departures: {
         Row: {
           branch_id: string
+          chinese_audio_url: string | null
           created_at: string
           departure_time: string
           destination: string
+          english_audio_url: string | null
           estimated_time: string | null
           fleet_id: string | null
           fleet_image_url: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id: string
+          khmer_audio_url: string | null
           plate_number: string
           status: string
           updated_at: string
         }
         Insert: {
           branch_id: string
+          chinese_audio_url?: string | null
           created_at?: string
           departure_time: string
           destination: string
+          english_audio_url?: string | null
           estimated_time?: string | null
           fleet_id?: string | null
           fleet_image_url?: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id?: string
+          khmer_audio_url?: string | null
           plate_number: string
           status: string
           updated_at?: string
         }
         Update: {
           branch_id?: string
+          chinese_audio_url?: string | null
           created_at?: string
           departure_time?: string
           destination?: string
+          english_audio_url?: string | null
           estimated_time?: string | null
           fleet_id?: string | null
           fleet_image_url?: string | null
           fleet_type?: Database["public"]["Enums"]["fleet_type"]
           id?: string
+          khmer_audio_url?: string | null
           plate_number?: string
           status?: string
           updated_at?: string
