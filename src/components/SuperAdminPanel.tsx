@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volume2, Users, Shield } from "lucide-react";
 import FleetManagement from "./FleetManagement";
-import KhmerTTSLab from "./KhmerTTSLab";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
 
@@ -827,12 +826,8 @@ const SuperAdminPanel = () => {
             Admin Accounts
           </TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
-            <Truck className="w-4 h-4" />
+            <Truck className="w-4 h-5" />
             Fleet Management
-          </TabsTrigger>
-          <TabsTrigger value="khmer-tts" className="flex items-center gap-2">
-            <Volume2 className="w-4 h-4" />
-            Khmer TTS Lab
           </TabsTrigger>
         </TabsList>
         
@@ -1805,10 +1800,6 @@ const SuperAdminPanel = () => {
               </Card>
             ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="tts-lab" className="space-y-6">
-          <KhmerTTSLab />
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">

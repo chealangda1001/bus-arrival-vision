@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import FleetManagement from "./FleetManagement";
 import OperatorSettings from "./OperatorSettings";
 import AnnouncementSystem from "./AnnouncementSystem";
-import KhmerTTSLab from "./KhmerTTSLab";
 import { TranslationManagement } from "./TranslationManagement";
 
 interface AdminPanelProps {
