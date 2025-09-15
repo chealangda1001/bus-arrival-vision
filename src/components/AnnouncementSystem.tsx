@@ -123,48 +123,51 @@ export default function AnnouncementSystem({
       const repeatCount = settings.announcement_repeat_count || 3;
       const khmerText = generateAnnouncementText(script.khmer, departure);
       const englishText = generateAnnouncementText(script.english, departure);
+      const chineseText = generateAnnouncementText(script.chinese, departure);
       
-      console.log("Generated texts:", { khmerText, englishText });
+      console.log("Generated texts:", { khmerText, englishText, chineseText });
 
       // Check for uploaded MP3 files first
       const hasUploadedKhmer = departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
       const hasUploadedEnglish = departure.english_audio_url && typeof departure.english_audio_url === 'string';
+      const hasUploadedChinese = departure.chinese_audio_url && typeof departure.chinese_audio_url === 'string';
       
-      if (hasUploadedKhmer || hasUploadedEnglish) {
-        console.log("Using uploaded MP3 files");
+      // Play in sequence: Khmer, English, Chinese
+      const playUploadedAudio = async (audioUrl: string, language: 'khmer' | 'english' | 'chinese') => {
+        setCurrentLanguage(language);
+        const response = await fetch(audioUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte), ''
+          )
+        );
+        await audioQueueRef.current.addToQueue(base64);
+        while (audioQueueRef.current.playing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        // Small pause between languages
+        await new Promise(resolve => setTimeout(resolve, 500));
+      };
+      
+      if (hasUploadedKhmer || hasUploadedEnglish || hasUploadedChinese) {
+        console.log("Using uploaded MP3 files in sequence: Khmer -> English -> Chinese");
         setIsGenerating(false);
         
         for (let repeat = 1; repeat <= repeatCount; repeat++) {
           setCurrentRepeat(repeat);
           
+          // Play in sequence: Khmer, English, Chinese
           if (hasUploadedKhmer) {
-            setCurrentLanguage('khmer');
-            const response = await fetch(departure.khmer_audio_url!);
-            const arrayBuffer = await response.arrayBuffer();
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce(
-                (data, byte) => data + String.fromCharCode(byte), ''
-              )
-            );
-            await audioQueueRef.current.addToQueue(base64);
-            while (audioQueueRef.current.playing) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
+            await playUploadedAudio(departure.khmer_audio_url!, 'khmer');
           }
           
           if (hasUploadedEnglish) {
-            setCurrentLanguage('english');
-            const response = await fetch(departure.english_audio_url!);
-            const arrayBuffer = await response.arrayBuffer();
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce(
-                (data, byte) => data + String.fromCharCode(byte), ''
-              )
-            );
-            await audioQueueRef.current.addToQueue(base64);
-            while (audioQueueRef.current.playing) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
+            await playUploadedAudio(departure.english_audio_url!, 'english');
+          }
+          
+          if (hasUploadedChinese) {
+            await playUploadedAudio(departure.chinese_audio_url!, 'chinese');
           }
           
           if (repeat < repeatCount) {
@@ -220,8 +223,8 @@ export default function AnnouncementSystem({
 
   useEffect(() => {
     if (departure && !isPlaying && settings?.auto_announcement_enabled && !manualTrigger) {
-      // Auto-play announcement when status changes to boarding
-      if (departure.status === 'boarding') {
+      // Disable auto-play when status is boarding - only auto-play for other statuses
+      if (departure.status !== 'boarding') {
         playAnnouncement();
       }
     }
@@ -275,8 +278,8 @@ export default function AnnouncementSystem({
       
       <div className="space-y-3">
         {/* Audio Source Indicators */}
-        <div className="flex justify-center gap-4 mb-4">
-          {(['khmer', 'english'] as const).map((lang) => {
+        <div className="flex justify-center gap-3 mb-4">
+          {(['khmer', 'english', 'chinese'] as const).map((lang) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
             return (
@@ -284,10 +287,11 @@ export default function AnnouncementSystem({
                 <div className={`px-2 py-1 rounded text-xs ${
                   hasCustomAudio ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
                 }`}>
-                  {lang === 'khmer' ? 'KHMER (Zephyr)' : 'ENGLISH (Kore)'}
+                  {lang === 'khmer' ? 'KHMER (1st)' :
+                   lang === 'english' ? 'ENGLISH (2nd)' : 'CHINESE (3rd)'}
                 </div>
                 <div className="text-xs text-text-display/60 mt-1">
-                  {hasCustomAudio ? 'Custom MP3' : 'Gemini AI'}
+                  {hasCustomAudio ? 'Custom MP3' : 'AI TTS'}
                 </div>
               </div>
             );
