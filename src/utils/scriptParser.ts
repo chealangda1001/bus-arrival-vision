@@ -131,9 +131,11 @@ export function generateMultiSpeakerCacheKey(
   speechRate: number = 1.0,
   pitchAdjustment: number = 0,
   temperature: number = 0.7,
-  styleInstructions?: string
+  styleInstructions?: string,
+  operatorId?: string
 ): string {
   const keyData = {
+    operatorId: operatorId || 'default',
     script,
     speechRate,
     pitchAdjustment,

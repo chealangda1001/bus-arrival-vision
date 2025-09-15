@@ -115,6 +115,31 @@ class AudioCacheManager {
       request.onsuccess = () => resolve();
     });
   }
+
+  async clearOperatorCache(operatorId: string): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.openCursor();
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          const cacheKey = cursor.value.cacheKey;
+          // Check if cache key contains the operator ID
+          if (cacheKey.includes(operatorId)) {
+            cursor.delete();
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+    });
+  }
 }
 
 // Audio playback queue for sequential announcements
@@ -182,7 +207,7 @@ export class AudioQueue {
 export const generateCacheKey = (text: string, language: string, operatorId: string): string => {
   try {
     // Use a simple hash approach to avoid encoding issues with non-Latin characters
-    const input = `${text}_${language}_${operatorId}_nova`;
+    const input = `${operatorId}_${text}_${language}_nova`;
     let hash = 0;
     for (let i = 0; i < input.length; i++) {
       const char = input.charCodeAt(i);
@@ -192,7 +217,7 @@ export const generateCacheKey = (text: string, language: string, operatorId: str
   } catch (error) {
     console.error('Error generating cache key:', error);
     // Fallback to a time-based key
-    const fallbackKey = `${language}_${operatorId}_${text.length}_${Date.now()}`;
+    const fallbackKey = `${operatorId}_${language}_${text.length}_${Date.now()}`;
     return btoa(fallbackKey);
   }
 };

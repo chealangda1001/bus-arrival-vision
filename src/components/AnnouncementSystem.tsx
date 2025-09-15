@@ -68,36 +68,42 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string, chineseText: string) => {
+  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string, chineseText: string, forceRefresh = false) => {
     try {
       const script = formatAnnouncementScript(khmerText, englishText, chineseText);
       const cacheKey = generateMultiSpeakerCacheKey(
         script,
-        0.9, // Slightly slower speech rate
-        0,   // No pitch adjustment 
-        0.7, // Natural temperature
-        DEFAULT_STYLE_INSTRUCTIONS
+        settings?.voice_settings?.khmer?.speed || 0.9,
+        settings?.voice_settings?.khmer?.pitch || 0,
+        settings?.temperature || 0.7,
+        settings?.style_instructions || DEFAULT_STYLE_INSTRUCTIONS,
+        operatorId
       );
       
-      // Check cache first
-      const cachedAudio = await audioCache.get(cacheKey);
-      if (cachedAudio) {
-        console.log("Using cached multi-speaker audio");
-        return cachedAudio;
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const cachedAudio = await audioCache.get(cacheKey);
+        if (cachedAudio) {
+          console.log("Using cached multi-speaker audio");
+          return cachedAudio;
+        }
       }
 
-      console.log("Generating new multi-speaker audio...");
-      console.log("Script:", script);
+      console.log("Generating new multi-speaker audio with Google Cloud TTS...");
+      console.log("Full Khmer script:", khmerText);
+      console.log("Full English script:", englishText);
+      console.log("Full Chinese script:", chineseText);
+      console.log("Complete formatted script:", script);
       
       // Call the new Gemini multi-speaker TTS function
       const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
         body: { 
           script,
           operatorId,
-          speechRate: 0.9,
-          pitchAdjustment: 0,
-          temperature: 0.7,
-          styleInstructions: DEFAULT_STYLE_INSTRUCTIONS
+          speechRate: settings?.voice_settings?.khmer?.speed || 0.9,
+          pitchAdjustment: settings?.voice_settings?.khmer?.pitch || 0,
+          temperature: settings?.temperature || 0.7,
+          styleInstructions: settings?.style_instructions || DEFAULT_STYLE_INSTRUCTIONS
         }
       });
 
@@ -109,11 +115,11 @@ export default function AnnouncementSystem({
       if (data?.audioContent) {
         // Cache the generated audio (expires in 24 hours)
         await audioCache.set(cacheKey, data.audioContent, 24);
-        console.log(`Generated audio with ${data.segments} segments using voices: ${data.voices?.join(', ')}`);
+        console.log(`Generated fresh audio with ${data.segments} segments using Google Cloud TTS voices: ${data.voices?.join(', ')}`);
         return data.audioContent;
       }
 
-      throw new Error("No audio content received from Gemini TTS");
+      throw new Error("No audio content received from Google Cloud TTS");
     } catch (error) {
       console.error("Error in generateMultiSpeakerAudio:", error);
       throw error;
@@ -187,7 +193,8 @@ export default function AnnouncementSystem({
 
       // Use multi-speaker Gemini TTS for AI-generated announcements
       setCurrentLanguage('multi');
-      const audioData = await generateMultiSpeakerAudio(khmerText, englishText, chineseText);
+      // Force refresh for fresh generation from Google Cloud TTS
+      const audioData = await generateMultiSpeakerAudio(khmerText, englishText, chineseText, true);
       setIsGenerating(false);
       
       // Play multi-speaker announcement for specified repeat count

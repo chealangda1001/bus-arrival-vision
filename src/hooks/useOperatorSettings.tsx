@@ -128,9 +128,28 @@ export const useOperatorSettings = (operatorId?: string) => {
       if (error) throw error;
 
       setSettings(data as unknown as OperatorSettings);
+
+      // Clear cache when settings change to force fresh generation
+      if (operatorId) {
+        try {
+          // Clear both Supabase cache and IndexedDB cache
+          await supabase
+            .from('announcements_cache')
+            .delete()
+            .eq('operator_id', operatorId);
+
+          const { audioCache } = await import("@/utils/audioCache");
+          await audioCache.clearOperatorCache(operatorId);
+          
+          console.log("Cache cleared after settings update");
+        } catch (cacheError) {
+          console.error('Error clearing cache after settings update:', cacheError);
+        }
+      }
+
       toast({
         title: "Settings Updated",
-        description: "Announcement settings have been saved successfully",
+        description: "Announcement settings have been saved and cache cleared",
       });
     } catch (error) {
       console.error('Error updating settings:', error);
@@ -146,12 +165,17 @@ export const useOperatorSettings = (operatorId?: string) => {
     if (!operatorId) return;
     
     try {
+      // Clear both Supabase cache and IndexedDB cache
       const { error } = await supabase
         .from('announcements_cache')
         .delete()
         .eq('operator_id', operatorId);
 
       if (error) throw error;
+
+      // Also clear IndexedDB cache for this operator
+      const { audioCache } = await import("@/utils/audioCache");
+      await audioCache.clearOperatorCache(operatorId);
 
       toast({
         title: "Cache Cleared",
