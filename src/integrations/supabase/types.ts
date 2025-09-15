@@ -96,6 +96,7 @@ export type Database = {
       departures: {
         Row: {
           branch_id: string
+          break_duration: string | null
           chinese_audio_url: string | null
           created_at: string
           departure_time: string
@@ -110,10 +111,12 @@ export type Database = {
           khmer_audio_url: string | null
           plate_number: string
           status: string
+          trip_duration: string | null
           updated_at: string
         }
         Insert: {
           branch_id: string
+          break_duration?: string | null
           chinese_audio_url?: string | null
           created_at?: string
           departure_time: string
@@ -128,10 +131,12 @@ export type Database = {
           khmer_audio_url?: string | null
           plate_number: string
           status: string
+          trip_duration?: string | null
           updated_at?: string
         }
         Update: {
           branch_id?: string
+          break_duration?: string | null
           chinese_audio_url?: string | null
           created_at?: string
           departure_time?: string
@@ -146,6 +151,7 @@ export type Database = {
           khmer_audio_url?: string | null
           plate_number?: string
           status?: string
+          trip_duration?: string | null
           updated_at?: string
         }
         Relationships: [

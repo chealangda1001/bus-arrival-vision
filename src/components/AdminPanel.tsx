@@ -43,6 +43,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
     estimated_time: "",
     fleet_id: "",
+    trip_duration: "",
+    break_duration: "",
     // Legacy fields for manual entry
     plate_number: "",
     fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
@@ -54,6 +56,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
     estimated_time: "",
     fleet_id: "",
+    trip_duration: "",
+    break_duration: "",
     // Legacy fields for manual entry
     plate_number: "",
     fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
@@ -134,6 +138,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       plate_number: selectedFleet?.plate_number || newDeparture.plate_number,
       fleet_type: selectedFleet?.fleet_type || newDeparture.fleet_type,
       fleet_image_url: selectedFleet?.fleet_image_url || newDeparture.fleet_image_url || undefined,
+      trip_duration: newDeparture.trip_duration || undefined,
+      break_duration: newDeparture.break_duration || undefined,
       is_visible: true, // New departures are visible by default
     };
 
@@ -146,6 +152,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       status: "on-time",
       estimated_time: "",
       fleet_id: "",
+      trip_duration: "",
+      break_duration: "",
       plate_number: "",
       fleet_type: "Bus",
       fleet_image_url: ""
@@ -161,6 +169,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       status: departure.status,
       estimated_time: departure.estimated_time || "",
       fleet_id: (departure as any).fleet_id || "",
+      trip_duration: departure.trip_duration || "",
+      break_duration: departure.break_duration || "",
       plate_number: departure.plate_number,
       fleet_type: departure.fleet_type,
       fleet_image_url: departure.fleet_image_url || ""
@@ -185,7 +195,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       : null;
 
     try {
-      const { error } = await supabase
+        const { error } = await supabase
         .from('departures')
         .update({
           destination: editDeparture.destination,
@@ -197,6 +207,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           plate_number: selectedFleet?.plate_number || editDeparture.plate_number,
           fleet_type: selectedFleet?.fleet_type || editDeparture.fleet_type,
           fleet_image_url: selectedFleet?.fleet_image_url || editDeparture.fleet_image_url || null,
+          trip_duration: editDeparture.trip_duration || null,
+          break_duration: editDeparture.break_duration || null,
           is_visible: true, // Keep visible when editing
           updated_at: new Date().toISOString()
         })
@@ -216,6 +228,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         status: "on-time",
         estimated_time: "",
         fleet_id: "",
+        trip_duration: "",
+        break_duration: "",
         plate_number: "",
         fleet_type: "Bus",
         fleet_image_url: ""
@@ -241,6 +255,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       status: "on-time",
       estimated_time: "",
       fleet_id: "",
+      trip_duration: "",
+      break_duration: "",
       plate_number: "",
       fleet_type: "Bus",
       fleet_image_url: ""
@@ -543,17 +559,77 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                   onChange={(e) => setNewDeparture(prev => ({...prev, plate_number: e.target.value}))}
                 />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="departureTime">Departure Time *</Label>
-                <Input
-                  id="departureTime"
-                  type="time"
-                  value={newDeparture.departure_time}
-                  onChange={(e) => setNewDeparture(prev => ({...prev, departure_time: e.target.value}))}
-                  required
-                />
-              </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="departureTime">Departure Time *</Label>
+                  <Input
+                    id="departureTime"
+                    type="time"
+                    value={newDeparture.departure_time}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, departure_time: e.target.value}))}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="estimatedTime">Estimated Time (if delayed)</Label>
+                  <Input
+                    id="estimatedTime"
+                    type="time"
+                    value={newDeparture.estimated_time}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, estimated_time: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tripDuration">Trip Duration (hours)</Label>
+                  <Input
+                    id="tripDuration"
+                    placeholder="e.g., 3.5"
+                    value={newDeparture.trip_duration}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, trip_duration: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="breakDuration">Break Duration (minutes)</Label>
+                  <Input
+                    id="breakDuration"
+                    placeholder="e.g., 15"
+                    value={newDeparture.break_duration}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, break_duration: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="estimatedTime">Estimated Time (if delayed)</Label>
+                  <Input
+                    id="estimatedTime"
+                    type="time"
+                    value={newDeparture.estimated_time}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, estimated_time: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tripDuration">Trip Duration (hours)</Label>
+                  <Input
+                    id="tripDuration"
+                    placeholder="e.g., 3.5"
+                    value={newDeparture.trip_duration}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, trip_duration: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="breakDuration">Break Duration (minutes)</Label>
+                  <Input
+                    id="breakDuration"
+                    placeholder="e.g., 15"
+                    value={newDeparture.break_duration}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, break_duration: e.target.value}))}
+                  />
+                </div>
 
               {/* Fleet image only for manual entry */}
               {!newDeparture.fleet_id && (
@@ -703,6 +779,26 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                     type="time"
                     value={editDeparture.estimated_time}
                     onChange={(e) => setEditDeparture(prev => ({...prev, estimated_time: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-tripDuration">Trip Duration (hours)</Label>
+                  <Input
+                    id="edit-tripDuration"
+                    placeholder="e.g., 3.5"
+                    value={editDeparture.trip_duration}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, trip_duration: e.target.value}))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-breakDuration">Break Duration (minutes)</Label>
+                  <Input
+                    id="edit-breakDuration"
+                    placeholder="e.g., 15"
+                    value={editDeparture.break_duration}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, break_duration: e.target.value}))}
                   />
                 </div>
 

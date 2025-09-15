@@ -16,6 +16,8 @@ export interface Departure {
   khmer_audio_url?: string;
   chinese_audio_url?: string;
   is_visible: boolean;
+  trip_duration?: string;
+  break_duration?: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +49,9 @@ export const useDepartures = (branchId?: string) => {
         ...item,
         status: item.status as Departure['status'],
         fleet_type: item.fleet_type as Departure['fleet_type'],
-        is_visible: item.is_visible ?? true
+        is_visible: item.is_visible ?? true,
+        trip_duration: item.trip_duration || undefined,
+        break_duration: item.break_duration || undefined
       })));
     } catch (error) {
       console.error('Error fetching departures:', error);

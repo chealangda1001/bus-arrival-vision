@@ -101,6 +101,8 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
     fleet_type: "Bus" as const,
     status: "boarding" as const,
     is_visible: true,
+    trip_duration: "3",
+    break_duration: "15",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
