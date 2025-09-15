@@ -189,46 +189,7 @@ async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
     console.log(`Generating Khmer TTS for text: "${request.text}"`);
     console.log(`Text length: ${request.text.length} characters`);
     
-    // First attempt: Try with Chinese voice for better Unicode handling
-    try {
-      console.log('Attempting Khmer TTS with Chinese Mandarin voice for better Unicode support...');
-      const chineseRequestBody = {
-        input: {
-          ssml: `<speak><prosody rate="${request.speechRate || 0.7}" pitch="${request.pitch || -2}st">${request.text}</prosody></speak>`
-        },
-        voice: {
-          languageCode: 'cmn-CN',
-          name: 'cmn-CN-Standard-A',
-          ssmlGender: 'FEMALE'
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          speakingRate: request.speechRate || 0.7,
-          pitch: request.pitch || -2
-        }
-      };
-
-      const chineseResponse = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(chineseRequestBody)
-      });
-
-      if (chineseResponse.ok) {
-        const chineseResult = await chineseResponse.json();
-        if (chineseResult.audioContent) {
-          console.log(`Successfully generated Khmer audio using Chinese voice for better Unicode handling`);
-          return chineseResult.audioContent;
-        }
-      }
-    } catch (chineseError) {
-      console.log('Chinese voice attempt failed, trying romanized approach...');
-    }
-
-    // Second attempt: Use romanized Khmer with English Neural2 voice (Zephyr)
+    // Convert Khmer to romanized text for proper pronunciation with Zephyr voice
     const romanizedText = romanizeKhmerForTTS(request.text);
     
     const requestBody = {
