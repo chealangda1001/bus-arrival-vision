@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface VoiceSettings {
   voice: 'male' | 'female';
+  voice_model?: 'Zephyr' | 'Kore' | 'Luna';
   speed: number;
   pitch: number;
 }
@@ -234,19 +235,46 @@ async function generateMultiSpeakerAudio(
     console.log('Getting OAuth 2.0 access token...');
     const accessToken = await getAccessToken(serviceAccount);
     
-    // Map languages and voices to Google Cloud TTS voices with proper language codes
-    const voiceMapping = {
-      'km': { 
-        languageCode: 'km-KH',  // Use proper Khmer language code
-        name: config.voiceSettings?.khmer?.voice === 'male' ? 'km-KH-Standard-B' : 'km-KH-Standard-A'
-      },
-      'en': { 
-        languageCode: 'en-US', 
-        name: config.voiceSettings?.english?.voice === 'female' ? 'en-US-Standard-F' : 'en-US-Standard-D'
-      },
-      'zh': { 
-        languageCode: 'cmn-CN', 
-        name: config.voiceSettings?.chinese?.voice === 'male' ? 'cmn-CN-Standard-B' : 'cmn-CN-Standard-A'
+    // Map voice models to Google Cloud TTS voices
+    const getVoiceForLanguage = (language: string, voiceSettings?: any) => {
+      // Voice model mapping for supported languages
+      const voiceModels = {
+        'Zephyr': { languageCode: 'en-US', name: 'en-US-Neural2-F' }, // Female neural voice for Khmer fallback
+        'Kore': { languageCode: 'en-US', name: 'en-US-Neural2-D' },   // Male neural voice for English
+        'Luna': { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-A' } // Female voice for Chinese
+      };
+
+      // Get voice model preference or fallback to gender-based selection
+      let voiceModel: string;
+      if (language === 'km' && voiceSettings?.khmer?.voice_model) {
+        voiceModel = voiceSettings.khmer.voice_model;
+      } else if (language === 'en' && voiceSettings?.english?.voice_model) {
+        voiceModel = voiceSettings.english.voice_model;
+      } else if (language === 'zh' && voiceSettings?.chinese?.voice_model) {
+        voiceModel = voiceSettings.chinese.voice_model;
+      } else {
+        // Fallback to default voice models based on language
+        voiceModel = language === 'km' ? 'Zephyr' : language === 'en' ? 'Kore' : 'Luna';
+      }
+
+      // Return the mapped voice or fallback
+      if (voiceModels[voiceModel as keyof typeof voiceModels]) {
+        return voiceModels[voiceModel as keyof typeof voiceModels];
+      }
+
+      // Final fallback based on language and gender
+      if (language === 'zh') {
+        return {
+          languageCode: 'cmn-CN',
+          name: voiceSettings?.chinese?.voice === 'male' ? 'cmn-CN-Standard-B' : 'cmn-CN-Standard-A'
+        };
+      } else {
+        // Use English for Khmer fallback and English
+        return {
+          languageCode: 'en-US',
+          name: voiceSettings?.[language === 'km' ? 'khmer' : 'english']?.voice === 'male' 
+            ? 'en-US-Neural2-D' : 'en-US-Neural2-F'
+        };
       }
     };
 
@@ -256,7 +284,12 @@ async function generateMultiSpeakerAudio(
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       const language = detectLanguage(segment.text);
-      const voice = voiceMapping[language as keyof typeof voiceMapping] || voiceMapping['en'];
+      const voice = getVoiceForLanguage(language, config.voiceSettings);
+      
+      // Log warning for Khmer fallback
+      if (language === 'km') {
+        console.log(`Using English voice as fallback for Khmer text (Google Cloud TTS doesn't support Khmer)`);
+      }
       
       console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
 

@@ -4,6 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 export interface VoiceSettings {
   voice: 'male' | 'female';
+  voice_model?: 'Zephyr' | 'Kore' | 'Luna';
   speed: number;
   pitch: number;
 }
@@ -84,9 +85,9 @@ export const useOperatorSettings = (operatorId?: string) => {
       style_instructions: "Use a professional airport flight announcement using multiple speakers. Use a warm and friendly Khmer female voice (Zephyr) for the main announcement in Khmer, clear and polite, like a native announcer. Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming. Maintain a steady pace with natural pauses, like real airport announcements, and avoid robotic intonation.",
       temperature: 0.7,
       voice_settings: {
-        khmer: { voice: 'female', speed: 0.9, pitch: 0.0 },
-        english: { voice: 'male', speed: 1.0, pitch: 0.0 },
-        chinese: { voice: 'female', speed: 0.9, pitch: 0.0 }
+        khmer: { voice: 'female', voice_model: 'Zephyr', speed: 0.9, pitch: 0.0 },
+        english: { voice: 'male', voice_model: 'Kore', speed: 1.0, pitch: 0.0 },
+        chinese: { voice: 'female', voice_model: 'Luna', speed: 0.9, pitch: 0.0 }
       }
     };
 

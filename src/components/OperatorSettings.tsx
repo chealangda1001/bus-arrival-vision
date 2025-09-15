@@ -272,7 +272,31 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               
               {(['khmer', 'english', 'chinese'] as const).map((language) => (
                 <TabsContent key={language} value={language} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-accent/5 rounded-lg border">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-accent/5 rounded-lg border">
+                    <div className="space-y-2">
+                      <Label>Voice Model</Label>
+                      <Select
+                        value={settings.voice_settings[language].voice_model || (language === 'khmer' ? 'Zephyr' : language === 'english' ? 'Kore' : 'Luna')}
+                        onValueChange={(value: 'Zephyr' | 'Kore' | 'Luna') => 
+                          handleVoiceSettingUpdate(language, 'voice_model', value)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select voice model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Zephyr">Zephyr (Female)</SelectItem>
+                          <SelectItem value="Kore">Kore (Male)</SelectItem>
+                          <SelectItem value="Luna">Luna (Female)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {language === 'khmer' && (
+                        <p className="text-xs text-muted-foreground">
+                          Uses English voice as fallback
+                        </p>
+                      )}
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label>Voice Gender</Label>
                       <Select
