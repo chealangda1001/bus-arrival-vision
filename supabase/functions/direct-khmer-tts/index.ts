@@ -107,6 +107,74 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return result.access_token;
 }
 
+// Helper function to create romanized version of Khmer text for better pronunciation
+function romanizeKhmerForTTS(khmerText: string): string {
+  // Basic Khmer-to-Latin romanization mapping for common words and sounds
+  const khmerRomanMap: { [key: string]: string } = {
+    // Common greeting and travel words
+    'សូម': 'soom',
+    'អញ្ជើញ': 'anh-cheun', 
+    'អ្នកដំណើរ': 'neak dom-naer',
+    'ទាំងអស់': 'teang os',
+    'ដែល': 'del',
+    'កំពុង': 'kam-poung',
+    'ធ្វើដំណើរ': 'tveu dom-naer',
+    'ទៅកាន់': 'tov kan',
+    'តាមរយៈ': 'tam ro-yeh',
+    'ឡាន': 'laan',
+    'រថយន្ត': 'rot-yon',
+    'មាន': 'mean',
+    'ស្លាកលេខ': 'slak lek',
+    'យើង': 'yeung',
+    'នឹង': 'nung',
+    'ចាក់ចេញ': 'chak chenh',
+    'ក្នុងពេល': 'k-nong pel',
+    'បន្តិចទៀត': 'bon-tech tiet',
+    'នេះ': 'nih',
+    'ហើយ': 'haey',
+    'ការធ្វើដំណើរ': 'kar tveu dom-naer',
+    'រយៈពេល': 'ro-yeh pel',
+    'ប្រហែល': 'bra-hael',
+    'ម៉ោង': 'maong',
+    'ការឈប់សំរាក': 'kar chup som-rak',
+    'ប្រមាណ': 'bra-man',
+    'នាទី': 'neati',
+    'សម្រាប់': 'som-rap',
+    'ទាំងអស់គ្នា': 'teang os knea',
+    'ទៅ': 'tov',
+    'បន្ទប់ទឹក': 'bon-tup tuk',
+    'ឬ': 'reu',
+    'ទិញ': 'tinh',
+    'អាហារ': 'ah-har',
+    'តិចតួច': 'tech tuoch',
+    'ទៅដល់': 'tov dol',
+    'បន្ទាប់': 'bon-teap',
+    'អរគុណ': 'or-kun',
+    'ជាមួយ': 'chea muoy',
+    'ក្រុមហ៊ុន': 'krom hun',
+    'យើងខ្ញុំ': 'yeung khnyom',
+    'ជូនពរ': 'choon por',
+    'អស់លោក': 'os look',
+    'លោកស្រី': 'look srey',
+    'ឲ្យ': 'aoy',
+    'ប្រកបដោយ': 'pra-kob daoy',
+    'សុវត្ថិភាព': 'so-vat-ti-phiep'
+  };
+
+  let romanizedText = khmerText;
+  
+  // Replace known Khmer words with romanized versions
+  for (const [khmer, roman] of Object.entries(khmerRomanMap)) {
+    const regex = new RegExp(khmer, 'g');
+    romanizedText = romanizedText.replace(regex, roman);
+  }
+  
+  console.log(`Original Khmer: ${khmerText}`);
+  console.log(`Romanized for TTS: ${romanizedText}`);
+  
+  return romanizedText;
+}
+
 async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
   const serviceAccountJson = Deno.env.get('GOOGLE_CLOUD_API_KEY');
   if (!serviceAccountJson) {
@@ -121,26 +189,65 @@ async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
     console.log(`Generating Khmer TTS for text: "${request.text}"`);
     console.log(`Text length: ${request.text.length} characters`);
     
-    // Since native Khmer (km-KH) is not supported by Google Cloud TTS,
-    // use English Neural2 voice which can handle Unicode characters better
-    // This maps to the "Zephyr" voice requested by the user
+    // First attempt: Try with Chinese voice for better Unicode handling
+    try {
+      console.log('Attempting Khmer TTS with Chinese Mandarin voice for better Unicode support...');
+      const chineseRequestBody = {
+        input: {
+          ssml: `<speak><prosody rate="${request.speechRate || 0.7}" pitch="${request.pitch || -2}st">${request.text}</prosody></speak>`
+        },
+        voice: {
+          languageCode: 'cmn-CN',
+          name: 'cmn-CN-Standard-A',
+          ssmlGender: 'FEMALE'
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: request.speechRate || 0.7,
+          pitch: request.pitch || -2
+        }
+      };
+
+      const chineseResponse = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(chineseRequestBody)
+      });
+
+      if (chineseResponse.ok) {
+        const chineseResult = await chineseResponse.json();
+        if (chineseResult.audioContent) {
+          console.log(`Successfully generated Khmer audio using Chinese voice for better Unicode handling`);
+          return chineseResult.audioContent;
+        }
+      }
+    } catch (chineseError) {
+      console.log('Chinese voice attempt failed, trying romanized approach...');
+    }
+
+    // Second attempt: Use romanized Khmer with English Neural2 voice (Zephyr)
+    const romanizedText = romanizeKhmerForTTS(request.text);
+    
     const requestBody = {
       input: {
-        text: request.text
+        ssml: `<speak><prosody rate="${request.speechRate || 0.8}" pitch="${request.pitch || -1}st">${romanizedText}</prosody></speak>`
       },
       voice: {
-        languageCode: 'en-US', // Use English as fallback for Khmer Unicode
-        name: 'en-US-Neural2-F', // Female neural voice (maps to Zephyr)
+        languageCode: 'en-US',
+        name: 'en-US-Neural2-F', // Zephyr voice mapping
         ssmlGender: 'FEMALE'
       },
       audioConfig: {
         audioEncoding: 'MP3',
-        speakingRate: request.speechRate || 0.7, // Slower for Khmer pronunciation
-        pitch: request.pitch || -2 // Lower pitch for better Khmer sound
+        speakingRate: request.speechRate || 0.8,
+        pitch: request.pitch || -1
       }
     };
 
-    console.log('Making request to Google Cloud TTS with English Neural2 voice for Khmer text...');
+    console.log('Making request to Google Cloud TTS with romanized Khmer text...');
     const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
       method: 'POST',
       headers: {
@@ -159,7 +266,7 @@ async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
     const result = await response.json();
     
     if (result.audioContent) {
-      console.log(`Successfully generated Khmer audio using English Neural2 voice (Zephyr mapping)`);
+      console.log(`Successfully generated Khmer audio using romanized text with Zephyr voice`);
       return result.audioContent;
     } else {
       throw new Error(`No audio data received from Google Cloud TTS`);
@@ -217,8 +324,8 @@ serve(async (req) => {
       audioContent: audioData,
       cacheKey,
       language: 'km-KH',
-      voice: 'en-US-Neural2-F', // Zephyr voice mapping
-      method: 'direct_google_cloud_tts_khmer_fallback'
+      voice: 'Zephyr', // User requested Zephyr voice for Khmer
+      method: 'direct_khmer_romanized_tts'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
