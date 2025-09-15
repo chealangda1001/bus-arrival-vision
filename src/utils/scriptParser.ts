@@ -108,7 +108,14 @@ export function generateMultiSpeakerCacheKey(
     version: 'gemini-v1'
   };
   
-  return btoa(JSON.stringify(keyData)).replace(/[+/=]/g, '');
+  // Use TextEncoder to handle Unicode characters properly
+  const encoder = new TextEncoder();
+  const data = encoder.encode(JSON.stringify(keyData));
+  
+  // Convert to base64 using Array.from to handle Unicode safely
+  const base64 = btoa(String.fromCharCode(...Array.from(data)));
+  
+  return base64.replace(/[+/=]/g, '');
 }
 
 /**
