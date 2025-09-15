@@ -5,8 +5,13 @@ import { Volume2, VolumeX, Loader2 } from "lucide-react";
 import { type Departure } from "@/hooks/useDepartures";
 import { supabase } from "@/integrations/supabase/client";
 import { useOperatorSettings } from "@/hooks/useOperatorSettings";
-import { audioCache, AudioQueue, generateCacheKey } from "@/utils/audioCache";
+import { audioCache, AudioQueue } from "@/utils/audioCache";
 import { useToast } from "@/components/ui/use-toast";
+import { 
+  formatAnnouncementScript, 
+  generateMultiSpeakerCacheKey,
+  DEFAULT_STYLE_INSTRUCTIONS 
+} from "@/utils/scriptParser";
 
 interface AnnouncementSystemProps {
   departure?: Departure;
@@ -28,7 +33,7 @@ export default function AnnouncementSystem({
   manualTrigger = false 
 }: AnnouncementSystemProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<'english' | 'khmer' | 'chinese'>('english');
+  const [currentLanguage, setCurrentLanguage] = useState<'multi' | 'english' | 'khmer' | 'chinese'>('multi');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentRepeat, setCurrentRepeat] = useState(1);
   const audioQueueRef = useRef<AudioQueue>(new AudioQueue());
@@ -56,34 +61,56 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  const generateAudio = async (text: string, language: 'english' | 'khmer' | 'chinese') => {
-    if (!operatorId) {
-      throw new Error('Operator ID is required for audio generation');
-    }
+  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string) => {
+    try {
+      const script = formatAnnouncementScript(khmerText, englishText);
+      const cacheKey = generateMultiSpeakerCacheKey(
+        script,
+        0.9, // Slightly slower speech rate
+        0,   // No pitch adjustment 
+        0.7, // Natural temperature
+        DEFAULT_STYLE_INSTRUCTIONS
+      );
+      
+      // Check cache first
+      const cachedAudio = await audioCache.get(cacheKey);
+      if (cachedAudio) {
+        console.log("Using cached multi-speaker audio");
+        return cachedAudio;
+      }
 
-    const cacheKey = generateCacheKey(text, language, operatorId);
-    
-    // Check local cache first
-    let audioData = await audioCache.get(cacheKey);
-    
-    if (!audioData) {
-      // Generate using edge function
-      const { data, error } = await supabase.functions.invoke('generate-announcement', {
-        body: {
-          text,
-          language,
-          operatorId
+      console.log("Generating new multi-speaker audio...");
+      console.log("Script:", script);
+      
+      // Call the new Gemini multi-speaker TTS function
+      const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
+        body: { 
+          script,
+          operatorId,
+          speechRate: 0.9,
+          pitchAdjustment: 0,
+          temperature: 0.7,
+          styleInstructions: DEFAULT_STYLE_INSTRUCTIONS
         }
       });
 
-      if (error) throw error;
-      audioData = data.audioData;
-      
-      // Cache locally for faster access
-      await audioCache.set(cacheKey, audioData);
-    }
+      if (error) {
+        console.error("Error generating multi-speaker audio:", error);
+        throw error;
+      }
 
-    return audioData;
+      if (data?.audioContent) {
+        // Cache the generated audio (expires in 24 hours)
+        await audioCache.set(cacheKey, data.audioContent, 24);
+        console.log(`Generated audio with ${data.segments} segments using voices: ${data.voices?.join(', ')}`);
+        return data.audioContent;
+      }
+
+      throw new Error("No audio content received from Gemini TTS");
+    } catch (error) {
+      console.error("Error in generateMultiSpeakerAudio:", error);
+      throw error;
+    }
   };
 
   const playAnnouncement = async () => {
@@ -93,71 +120,74 @@ export default function AnnouncementSystem({
       setIsPlaying(true);
       setIsGenerating(true);
       
-      const languages: ('english' | 'khmer' | 'chinese')[] = ['english', 'khmer', 'chinese'];
       const repeatCount = settings.announcement_repeat_count || 3;
+      const khmerText = generateAnnouncementText(script.khmer, departure);
+      const englishText = generateAnnouncementText(script.english, departure);
       
-      // Check for uploaded MP3 files vs AI generation
-      const audioPromises: Promise<{ lang: string; audioData: string; source: 'mp3' | 'ai' }>[] = [];
+      console.log("Generated texts:", { khmerText, englishText });
+
+      // Check for uploaded MP3 files first
+      const hasUploadedKhmer = departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
+      const hasUploadedEnglish = departure.english_audio_url && typeof departure.english_audio_url === 'string';
       
-      for (const lang of languages) {
-        const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
-        const uploadedAudioUrl = departure[audioUrlKey];
+      if (hasUploadedKhmer || hasUploadedEnglish) {
+        console.log("Using uploaded MP3 files");
+        setIsGenerating(false);
         
-        if (uploadedAudioUrl && typeof uploadedAudioUrl === 'string') {
-          // Use uploaded MP3 file
-          audioPromises.push(
-            fetch(uploadedAudioUrl)
-              .then(response => response.arrayBuffer())
-              .then(arrayBuffer => {
-                const base64 = btoa(
-                  new Uint8Array(arrayBuffer).reduce(
-                    (data, byte) => data + String.fromCharCode(byte),
-                    ''
-                  )
-                );
-                return { lang, audioData: base64, source: 'mp3' as const };
-              })
-              .catch(error => {
-                console.error(`Failed to load MP3 for ${lang}:`, error);
-                // Fallback to AI generation
-                const text = generateAnnouncementText(script[lang], departure);
-                return generateAudio(text, lang).then(audioData => ({ lang, audioData, source: 'ai' as const }));
-              })
-          );
-        } else {
-          // Fallback to AI generation
-          const text = generateAnnouncementText(script[lang], departure);
-          audioPromises.push(
-            generateAudio(text, lang).then(audioData => ({ lang, audioData, source: 'ai' as const }))
-          );
+        for (let repeat = 1; repeat <= repeatCount; repeat++) {
+          setCurrentRepeat(repeat);
+          
+          if (hasUploadedKhmer) {
+            setCurrentLanguage('khmer');
+            const response = await fetch(departure.khmer_audio_url!);
+            const arrayBuffer = await response.arrayBuffer();
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce(
+                (data, byte) => data + String.fromCharCode(byte), ''
+              )
+            );
+            await audioQueueRef.current.addToQueue(base64);
+            while (audioQueueRef.current.playing) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+          
+          if (hasUploadedEnglish) {
+            setCurrentLanguage('english');
+            const response = await fetch(departure.english_audio_url!);
+            const arrayBuffer = await response.arrayBuffer();
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce(
+                (data, byte) => data + String.fromCharCode(byte), ''
+              )
+            );
+            await audioQueueRef.current.addToQueue(base64);
+            while (audioQueueRef.current.playing) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+          
+          if (repeat < repeatCount) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
+        
+        return;
       }
-      
-      const audioResults = await Promise.all(audioPromises);
+
+      // Use multi-speaker Gemini TTS for AI-generated announcements
+      setCurrentLanguage('multi');
+      const audioData = await generateMultiSpeakerAudio(khmerText, englishText);
       setIsGenerating(false);
       
-      // Log which audio sources are being used
-      audioResults.forEach(({ lang, source }) => {
-        console.log(`Using ${source} audio for ${lang}`);
-      });
-      
-      // Play announcements in sequence for specified repeat count
+      // Play multi-speaker announcement for specified repeat count
       for (let repeat = 1; repeat <= repeatCount; repeat++) {
         setCurrentRepeat(repeat);
+        await audioQueueRef.current.addToQueue(audioData);
         
-        for (const { lang, audioData } of audioResults) {
-          setCurrentLanguage(lang as 'english' | 'khmer' | 'chinese');
-          await audioQueueRef.current.addToQueue(audioData);
-          
-          // Wait for current audio to finish
-          while (audioQueueRef.current.playing) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          
-          // Small pause between languages
-          if (lang !== 'chinese') {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+        // Wait for current audio to finish
+        while (audioQueueRef.current.playing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
         
         // Pause between repeats (except after the last one)
@@ -246,18 +276,18 @@ export default function AnnouncementSystem({
       <div className="space-y-3">
         {/* Audio Source Indicators */}
         <div className="flex justify-center gap-4 mb-4">
-          {(['english', 'khmer', 'chinese'] as const).map((lang) => {
+          {(['khmer', 'english'] as const).map((lang) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
             return (
               <div key={lang} className="text-center">
                 <div className={`px-2 py-1 rounded text-xs ${
-                  hasCustomAudio ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                  hasCustomAudio ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
                 }`}>
-                  {lang.toUpperCase()}
+                  {lang === 'khmer' ? 'KHMER (Zephyr)' : 'ENGLISH (Kore)'}
                 </div>
                 <div className="text-xs text-text-display/60 mt-1">
-                  {hasCustomAudio ? 'Custom MP3' : 'AI Voice'}
+                  {hasCustomAudio ? 'Custom MP3' : 'Gemini AI'}
                 </div>
               </div>
             );
@@ -275,9 +305,9 @@ export default function AnnouncementSystem({
           <div className="bg-background/50 rounded-lg p-4 border">
             <div className="text-sm mb-2 font-semibold flex items-center justify-between">
               <span>
-                {currentLanguage === 'english' && '🇺🇸 English'}
-                {currentLanguage === 'khmer' && '🇰🇭 ខ្មែរ'}
-                {currentLanguage === 'chinese' && '🇨🇳 中文'}
+                {currentLanguage === 'multi' && '🎭 Multi-Speaker (Zephyr + Kore)'}
+                {currentLanguage === 'english' && '🇺🇸 English (Kore)'}
+                {currentLanguage === 'khmer' && '🇰🇭 ខ្មែរ (Zephyr)'}
               </span>
               {isPlaying && (
                 <span className="text-xs text-muted-foreground">
@@ -285,9 +315,23 @@ export default function AnnouncementSystem({
                 </span>
               )}
             </div>
-            <p className="text-text-display">
-              {generateAnnouncementText(script[currentLanguage], departure)}
-            </p>
+            {currentLanguage === 'multi' ? (
+              <div className="space-y-2">
+                <div className="text-text-display">
+                  <span className="text-xs text-primary font-medium">[Zephyr - Khmer]</span><br />
+                  {generateAnnouncementText(script.khmer, departure)}
+                </div>
+                <div className="text-text-display">
+                  <span className="text-xs text-primary font-medium">[Kore - English]</span><br />
+                  {generateAnnouncementText(script.english, departure)}
+                </div>
+              </div>
+            ) : (
+              <p className="text-text-display">
+                {currentLanguage === 'khmer' && generateAnnouncementText(script.khmer, departure)}
+                {currentLanguage === 'english' && generateAnnouncementText(script.english, departure)}
+              </p>
+            )}
           </div>
         )}
         

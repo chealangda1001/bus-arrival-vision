@@ -63,5 +63,5 @@ verify_jwt = false
 [functions.khmer-voice-evaluator]
 verify_jwt = false
 
-[functions.khmer-voice-optimizer]
+[functions.gemini-multispeaker-tts]
 verify_jwt = false
