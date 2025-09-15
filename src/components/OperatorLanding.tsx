@@ -17,6 +17,7 @@ import {
   ArrowRight,
   PlayCircle
 } from "lucide-react";
+import bmbLogo from "@/assets/bmb-logo.png";
 
 const OperatorLanding = () => {
   const navigate = useNavigate();
@@ -121,7 +122,7 @@ const OperatorLanding = () => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Monitor className="w-8 h-8 text-primary" />
+              <img src={bmbLogo} alt="BookMeBus Logo" className="w-8 h-8" />
               <span className="text-2xl font-bold text-text-display">BookMeBus</span>
             </div>
             <Button 
@@ -276,11 +277,11 @@ const OperatorLanding = () => {
       <footer className="py-12 px-6 border-t border-border">
         <div className="max-w-7xl mx-auto text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <Monitor className="w-6 h-6 text-primary" />
+            <img src={bmbLogo} alt="BookMeBus Logo" className="w-6 h-6" />
             <span className="text-xl font-bold text-text-display">BookMeBus</span>
           </div>
           <p className="text-text-display/60">
-            © 2024 BookMeBus. All rights reserved. | Modern bus departure board management.
+            © {new Date().getFullYear()} BookMeBus. All rights reserved. | Modern bus departure board management.
           </p>
         </div>
       </footer>
