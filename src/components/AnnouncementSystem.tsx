@@ -68,60 +68,95 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string, chineseText: string, forceRefresh = false) => {
+  // Generate direct Khmer TTS using Google Cloud native support
+  const generateDirectKhmerTTS = async (khmerText: string, forceRefresh = false) => {
     try {
-      const script = formatAnnouncementScript(khmerText, englishText, chineseText);
-      const cacheKey = generateMultiSpeakerCacheKey(
-        script,
-        settings?.voice_settings?.khmer?.speed || 0.9,
-        settings?.voice_settings?.khmer?.pitch || 0,
-        settings?.temperature || 0.7,
-        settings?.style_instructions || DEFAULT_STYLE_INSTRUCTIONS,
-        operatorId
-      );
+      const cacheKey = `khmer_direct_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}`;
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log("Using cached multi-speaker audio");
+          console.log("Using cached direct Khmer audio");
           return cachedAudio;
         }
       }
 
-      console.log("Generating new multi-speaker audio with Google Cloud TTS...");
-      console.log("Full Khmer script:", khmerText);
-      console.log("Full English script:", englishText);
-      console.log("Full Chinese script:", chineseText);
-      console.log("Complete formatted script:", script);
+      console.log("Generating direct Khmer TTS with native Google Cloud support...");
+      console.log("Full Khmer text:", khmerText);
+      console.log("Khmer text length:", khmerText.length);
       
-      // Call the new Gemini multi-speaker TTS function
-      const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
+      // Call the direct Khmer TTS function
+      const { data, error } = await supabase.functions.invoke('direct-khmer-tts', {
         body: { 
-          script,
+          text: khmerText,
           operatorId,
           speechRate: settings?.voice_settings?.khmer?.speed || 0.9,
-          pitchAdjustment: settings?.voice_settings?.khmer?.pitch || 0,
-          temperature: settings?.temperature || 0.7,
-          styleInstructions: settings?.style_instructions || DEFAULT_STYLE_INSTRUCTIONS
+          pitch: settings?.voice_settings?.khmer?.pitch || 0,
+          voiceModel: 'Standard-A'
         }
       });
 
       if (error) {
-        console.error("Error generating multi-speaker audio:", error);
+        console.error("Error generating direct Khmer TTS:", error);
         throw error;
       }
 
       if (data?.audioContent) {
         // Cache the generated audio (expires in 24 hours)
         await audioCache.set(cacheKey, data.audioContent, 24);
-        console.log(`Generated fresh audio with ${data.segments} segments using Google Cloud TTS voices: ${data.voices?.join(', ')}`);
+        console.log(`Generated direct Khmer TTS using ${data.voice} (${data.method})`);
         return data.audioContent;
       }
 
-      throw new Error("No audio content received from Google Cloud TTS");
+      throw new Error("No audio content received from direct Khmer TTS");
     } catch (error) {
-      console.error("Error in generateMultiSpeakerAudio:", error);
+      console.error("Error in generateDirectKhmerTTS:", error);
+      throw error;
+    }
+  };
+
+  // Generate direct TTS for other languages
+  const generateDirectTTS = async (text: string, language: 'english' | 'chinese', forceRefresh = false) => {
+    try {
+      const langCode = language === 'english' ? 'en-US' : 'cmn-CN';
+      const voice = language === 'english' ? 'en-US-Neural2-F' : 'cmn-CN-Standard-A';
+      const cacheKey = `${language}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}`;
+      
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const cachedAudio = await audioCache.get(cacheKey);
+        if (cachedAudio) {
+          console.log(`Using cached direct ${language} audio`);
+          return cachedAudio;
+        }
+      }
+
+      console.log(`Generating direct ${language} TTS...`);
+      
+      // Use existing multi-speaker function but with single language
+      const singleLanguageScript = `[Voice: ${language === 'english' ? 'Kore' : 'Luna'}] ${text}`;
+      
+      const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
+        body: { 
+          script: singleLanguageScript,
+          operatorId,
+          speechRate: language === 'english' ? 
+            (settings?.voice_settings?.english?.speed || 1.0) : 
+            (settings?.voice_settings?.chinese?.speed || 0.9),
+          pitchAdjustment: language === 'english' ? 
+            (settings?.voice_settings?.english?.pitch || 0) : 
+            (settings?.voice_settings?.chinese?.pitch || 0)
+        }
+      });
+
+      if (error) throw error;
+      if (!data?.audioContent) throw new Error(`No audio content received for ${language}`);
+
+      await audioCache.set(cacheKey, data.audioContent, 24);
+      return data.audioContent;
+    } catch (error) {
+      console.error(`Error in generateDirectTTS for ${language}:`, error);
       throw error;
     }
   };
@@ -191,18 +226,35 @@ export default function AnnouncementSystem({
         return;
       }
 
-      // Use multi-speaker Gemini TTS for AI-generated announcements
-      setCurrentLanguage('multi');
-      // Force refresh for fresh generation from Google Cloud TTS
-      const audioData = await generateMultiSpeakerAudio(khmerText, englishText, chineseText, true);
+      // Use sequential direct TTS for each language with native Khmer support
+      console.log("Using sequential direct TTS: Khmer (native) -> English -> Chinese");
       setIsGenerating(false);
       
-      // Play multi-speaker announcement for specified repeat count
       for (let repeat = 1; repeat <= repeatCount; repeat++) {
         setCurrentRepeat(repeat);
-        await audioQueueRef.current.addToQueue(audioData);
         
-        // Wait for current audio to finish
+        // Play Khmer first using native Google Cloud TTS
+        setCurrentLanguage('khmer');
+        const khmerAudio = await generateDirectKhmerTTS(khmerText, true);
+        await audioQueueRef.current.addToQueue(khmerAudio);
+        while (audioQueueRef.current.playing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
+        
+        // Play English second
+        setCurrentLanguage('english');
+        const englishAudio = await generateDirectTTS(englishText, 'english', true);
+        await audioQueueRef.current.addToQueue(englishAudio);
+        while (audioQueueRef.current.playing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
+        
+        // Play Chinese third
+        setCurrentLanguage('chinese');
+        const chineseAudio = await generateDirectTTS(chineseText, 'chinese', true);
+        await audioQueueRef.current.addToQueue(chineseAudio);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }

@@ -235,11 +235,13 @@ async function generateMultiSpeakerAudio(
     console.log('Getting OAuth 2.0 access token...');
     const accessToken = await getAccessToken(serviceAccount);
     
-    // Map voice models to Google Cloud TTS voices
+    // Map voice models to Google Cloud TTS voices with native Khmer support
     const getVoiceForLanguage = (language: string, voiceSettings?: any) => {
       // Voice model mapping for supported languages
       const voiceModels = {
-        'Zephyr': { languageCode: 'en-US', name: 'en-US-Neural2-F' }, // Female neural voice for Khmer fallback
+        'Zephyr': language === 'km' ? 
+          { languageCode: 'km-KH', name: 'km-KH-Standard-A' } : // Native Khmer voice
+          { languageCode: 'en-US', name: 'en-US-Neural2-F' },  // English fallback
         'Kore': { languageCode: 'en-US', name: 'en-US-Neural2-D' },   // Male neural voice for English
         'Luna': { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-A' } // Female voice for Chinese
       };
@@ -263,16 +265,22 @@ async function generateMultiSpeakerAudio(
       }
 
       // Final fallback based on language and gender
-      if (language === 'zh') {
+      if (language === 'km') {
+        // Native Khmer support
+        return {
+          languageCode: 'km-KH',
+          name: voiceSettings?.khmer?.voice === 'male' ? 'km-KH-Standard-B' : 'km-KH-Standard-A'
+        };
+      } else if (language === 'zh') {
         return {
           languageCode: 'cmn-CN',
           name: voiceSettings?.chinese?.voice === 'male' ? 'cmn-CN-Standard-B' : 'cmn-CN-Standard-A'
         };
       } else {
-        // Use English for Khmer fallback and English
+        // English
         return {
           languageCode: 'en-US',
-          name: voiceSettings?.[language === 'km' ? 'khmer' : 'english']?.voice === 'male' 
+          name: voiceSettings?.english?.voice === 'male' 
             ? 'en-US-Neural2-D' : 'en-US-Neural2-F'
         };
       }
@@ -286,9 +294,9 @@ async function generateMultiSpeakerAudio(
       const language = detectLanguage(segment.text);
       const voice = getVoiceForLanguage(language, config.voiceSettings);
       
-      // Log warning for Khmer fallback
+      // Use native Khmer support when available
       if (language === 'km') {
-        console.log(`Using English voice as fallback for Khmer text (Google Cloud TTS doesn't support Khmer)`);
+        console.log(`Using native Google Cloud TTS Khmer support for better pronunciation`);
       }
       
       console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
