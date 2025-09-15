@@ -50,13 +50,17 @@ export default function AnnouncementSystem({
   const generateAnnouncementText = (template: string, departure: Departure) => {
     let announcementText = template;
     
-    if (departure.fleet_type) {
-      announcementText = announcementText.replace('{fleet_type}', departure.fleet_type);
-    }
+    // Replace all departure-related parameters
+    announcementText = announcementText.replace(/{fleet_type}/g, departure.fleet_type || 'Bus');
+    announcementText = announcementText.replace(/{destination}/g, departure.destination);
+    announcementText = announcementText.replace(/{time}/g, departure.departure_time);
+    announcementText = announcementText.replace(/{plate}/g, departure.plate_number || '');
+    announcementText = announcementText.replace(/{fleet_plate_number}/g, departure.plate_number || '');
+    announcementText = announcementText.replace(/{trip_duration}/g, departure.trip_duration || 'N/A');
+    announcementText = announcementText.replace(/{break_duration}/g, departure.break_duration || 'N/A');
     
-    announcementText = announcementText.replace('{destination}', departure.destination);
-    announcementText = announcementText.replace('{time}', departure.departure_time);
-    announcementText = announcementText.replace('{plate}', departure.plate_number || '');
+    // Replace operator name with default value for now
+    announcementText = announcementText.replace(/{operator_name}/g, 'BookMeBus');
     
     return announcementText;
   };

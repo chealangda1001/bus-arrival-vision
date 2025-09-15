@@ -551,85 +551,58 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                 />
               </div>
               
+              {/* Only show manual plate number if not using fleet selection */}
+              {(!newDeparture.fleet_id || newDeparture.fleet_id === "manual") && (
+                <div className="space-y-2">
+                  <Label htmlFor="plateNumberManual">Plate Number</Label>
+                  <Input
+                    id="plateNumberManual"
+                    value={newDeparture.plate_number}
+                    onChange={(e) => setNewDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                  />
+                </div>
+              )}
+                
               <div className="space-y-2">
-                <Label htmlFor="plateNumber">Plate Number</Label>
+                <Label htmlFor="departureTime">Departure Time *</Label>
                 <Input
-                  id="plateNumber"
-                  value={newDeparture.plate_number}
-                  onChange={(e) => setNewDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                  id="departureTime"
+                  type="time"
+                  value={newDeparture.departure_time}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, departure_time: e.target.value}))}
+                  required
                 />
               </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="departureTime">Departure Time *</Label>
-                  <Input
-                    id="departureTime"
-                    type="time"
-                    value={newDeparture.departure_time}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, departure_time: e.target.value}))}
-                    required
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="estimatedTime">Estimated Time (if delayed)</Label>
-                  <Input
-                    id="estimatedTime"
-                    type="time"
-                    value={newDeparture.estimated_time}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, estimated_time: e.target.value}))}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="estimatedTime">Estimated Time (if delayed)</Label>
+                <Input
+                  id="estimatedTime"
+                  type="time"
+                  value={newDeparture.estimated_time}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, estimated_time: e.target.value}))}
+                />
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tripDuration">Trip Duration (hours)</Label>
-                  <Input
-                    id="tripDuration"
-                    placeholder="e.g., 3.5"
-                    value={newDeparture.trip_duration}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, trip_duration: e.target.value}))}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="tripDuration">Trip Duration (hours)</Label>
+                <Input
+                  id="tripDuration"
+                  placeholder="e.g., 3.5"
+                  value={newDeparture.trip_duration}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, trip_duration: e.target.value}))}
+                />
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="breakDuration">Break Duration (minutes)</Label>
-                  <Input
-                    id="breakDuration"
-                    placeholder="e.g., 15"
-                    value={newDeparture.break_duration}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, break_duration: e.target.value}))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="estimatedTime">Estimated Time (if delayed)</Label>
-                  <Input
-                    id="estimatedTime"
-                    type="time"
-                    value={newDeparture.estimated_time}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, estimated_time: e.target.value}))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tripDuration">Trip Duration (hours)</Label>
-                  <Input
-                    id="tripDuration"
-                    placeholder="e.g., 3.5"
-                    value={newDeparture.trip_duration}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, trip_duration: e.target.value}))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="breakDuration">Break Duration (minutes)</Label>
-                  <Input
-                    id="breakDuration"
-                    placeholder="e.g., 15"
-                    value={newDeparture.break_duration}
-                    onChange={(e) => setNewDeparture(prev => ({...prev, break_duration: e.target.value}))}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="breakDuration">Break Duration (minutes)</Label>
+                <Input
+                  id="breakDuration"
+                  placeholder="e.g., 15"
+                  value={newDeparture.break_duration}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, break_duration: e.target.value}))}
+                />
+              </div>
 
               {/* Fleet image only for manual entry */}
               {!newDeparture.fleet_id && (
