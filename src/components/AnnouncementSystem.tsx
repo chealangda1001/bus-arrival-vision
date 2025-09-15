@@ -50,6 +50,8 @@ export default function AnnouncementSystem({
   const generateAnnouncementText = (template: string, departure: Departure) => {
     let announcementText = template;
     
+    console.log(`Generating announcement text from template: "${template}"`);
+    
     // Replace all departure-related parameters
     announcementText = announcementText.replace(/{fleet_type}/g, departure.fleet_type || 'Bus');
     announcementText = announcementText.replace(/{destination}/g, departure.destination);
@@ -62,6 +64,7 @@ export default function AnnouncementSystem({
     // Replace operator name from settings
     announcementText = announcementText.replace(/{operator_name}/g, settings?.operator_name || 'BookMeBus');
     
+    console.log(`Generated announcement text: "${announcementText}"`);
     return announcementText;
   };
 

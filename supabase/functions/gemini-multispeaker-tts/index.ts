@@ -292,8 +292,10 @@ async function generateMultiSpeakerAudio(
       }
       
       console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
+      console.log(`Full segment text for ${segment.voice} (${language}):`, segment.text);
+    console.log(`Full segment text for ${language}:`, segment.text);
 
-      // Build request for Google Cloud Text-to-Speech API
+    // Build request for Google Cloud Text-to-Speech API
       const requestBody = {
         input: {
           text: segment.text
@@ -363,11 +365,17 @@ serve(async (req) => {
     }
 
     console.log('Generating multi-speaker TTS for operator:', operatorId);
-    console.log('Script:', script);
+    console.log('Full script received:', script);
+    console.log('Script length:', script.length);
 
     // Parse the script into speaker segments
     const segments = parseScript(script);
-    console.log('Parsed segments:', segments);
+    console.log('Parsed segments:', segments.map(s => ({ 
+      voice: s.voice, 
+      language: s.language, 
+      textPreview: s.text.substring(0, 50) + (s.text.length > 50 ? '...' : ''),
+      fullTextLength: s.text.length 
+    })));
 
     if (segments.length === 0) {
       throw new Error('No valid speech segments found in script');

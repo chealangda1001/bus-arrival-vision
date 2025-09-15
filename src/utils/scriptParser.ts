@@ -52,11 +52,16 @@ export function parseScript(script: string): SpeakerSegment[] {
   const segments: SpeakerSegment[] = [];
   const lines = script.split('\n').filter(line => line.trim());
   
+  console.log('parseScript input:', script);
+  console.log('parseScript lines:', lines);
+  
   for (const line of lines) {
     const voiceMatch = line.match(/\[Voice:\s*(\w+)\]\s*(.+)/);
     if (voiceMatch) {
       const [, voice, text] = voiceMatch;
       const voiceName = voice.trim() as 'Zephyr' | 'Kore' | 'Luna';
+      
+      console.log(`Found voice match - Voice: ${voiceName}, Text: "${text.trim()}"`);
       
       if (VOICE_CONFIGS[voiceName]) {
         segments.push({ 
@@ -66,6 +71,7 @@ export function parseScript(script: string): SpeakerSegment[] {
         });
       } else {
         // Default to Zephyr for unknown voices
+        console.log(`Unknown voice ${voiceName}, defaulting to Zephyr`);
         segments.push({ 
           voice: 'Zephyr', 
           text: text.trim(),
@@ -77,6 +83,8 @@ export function parseScript(script: string): SpeakerSegment[] {
       const isKhmer = /[\u1780-\u17FF]/.test(line);
       const isChinese = /[\u4e00-\u9fff]/.test(line);
       
+      console.log(`Auto-detecting language for line: "${line.trim()}" - Khmer: ${isKhmer}, Chinese: ${isChinese}`);
+      
       if (isKhmer) {
         segments.push({ voice: 'Zephyr', text: line.trim(), language: 'km' });
       } else if (isChinese) {
@@ -87,6 +95,7 @@ export function parseScript(script: string): SpeakerSegment[] {
     }
   }
   
+  console.log('parseScript output segments:', segments);
   return segments;
 }
 
@@ -98,6 +107,11 @@ export function formatAnnouncementScript(
   englishText: string,
   chineseText?: string
 ): string {
+  console.log('formatAnnouncementScript inputs:');
+  console.log('- Khmer:', khmerText);
+  console.log('- English:', englishText);
+  console.log('- Chinese:', chineseText || 'N/A');
+  
   let script = `[Voice: Zephyr] ${khmerText}
 [Voice: Kore] ${englishText}`;
   
@@ -105,6 +119,7 @@ export function formatAnnouncementScript(
     script += `\n[Voice: Luna] ${chineseText}`;
   }
   
+  console.log('formatAnnouncementScript output:', script);
   return script;
 }
 
