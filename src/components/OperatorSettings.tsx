@@ -129,6 +129,16 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="operator-name">Operator Name</Label>
+                  <Input
+                    id="operator-name"
+                    value={settings.operator_name}
+                    onChange={(e) => updateSettings({ operator_name: e.target.value })}
+                    placeholder="Enter operator name"
+                  />
+                </div>
+                
                 <div className="flex items-center justify-between">
                   <Label htmlFor="voice-enabled">Voice Announcements</Label>
                   <Switch

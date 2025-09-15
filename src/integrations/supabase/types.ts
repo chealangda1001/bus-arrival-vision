@@ -372,6 +372,7 @@ export type Database = {
           created_at: string
           id: string
           operator_id: string
+          operator_name: string | null
           style_instructions: string | null
           temperature: number | null
           updated_at: string
@@ -385,6 +386,7 @@ export type Database = {
           created_at?: string
           id?: string
           operator_id: string
+          operator_name?: string | null
           style_instructions?: string | null
           temperature?: number | null
           updated_at?: string
@@ -398,6 +400,7 @@ export type Database = {
           created_at?: string
           id?: string
           operator_id?: string
+          operator_name?: string | null
           style_instructions?: string | null
           temperature?: number | null
           updated_at?: string

@@ -11,6 +11,7 @@ export interface VoiceSettings {
 export interface OperatorSettings {
   id: string;
   operator_id: string;
+  operator_name: string;
   announcement_repeat_count: number;
   announcement_scripts: {
     english: string;
@@ -71,6 +72,7 @@ export const useOperatorSettings = (operatorId?: string) => {
     
     const defaultSettings = {
       operator_id: operatorId,
+      operator_name: 'BookMeBus',
       announcement_repeat_count: 3,
       announcement_scripts: {
         khmer: "សូមអញ្ជើញអ្នកដំណើរទាំងអស់, ដែលកំពុងធ្វើដំណើរ, ទៅកាន់{destination}, តាមរយៈឡាន{fleet_type}, អញ្ជើញឡើងរថយន្ត, ដែលមានស្លាកលេខ, {fleet_plate_number}, យើងនឹងចាក់ចេញដំណើរទៅកាន់ {destination} ក្នុងពេលបន្តិចទៀតនេះ, ហើយការធ្វើដំណើរនេះមានរយៈពេលប្រហែល {trip_duration} ម៉ោង, យើងនឹងមានការឈប់សំរាកប្រមាណ {break_duration} នាទី, សម្រាប់អ្នកទាំងអស់គ្នាទៅបន្ទប់ទឹក ឬទិញអាហារតិចតួច, យើងនឹងទៅដល់ {destination} ប្រមាណ {trip_duration} ម៉ោងបន្ទាប់, សូមអរគុណសម្រាប់ការធ្វើដំណើររបស់អ្នក, ជាមួយក្រុមហ៊ុន, {operator_name}, យើងខ្ញុំសូមជូនពរអស់លោក, លោកស្រី, ឲ្យធ្វើដំណើរប្រកបដោយសុវត្ថិភាព សូមអរគុណ",

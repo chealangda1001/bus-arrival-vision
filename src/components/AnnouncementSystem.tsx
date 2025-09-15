@@ -59,8 +59,8 @@ export default function AnnouncementSystem({
     announcementText = announcementText.replace(/{trip_duration}/g, departure.trip_duration || 'N/A');
     announcementText = announcementText.replace(/{break_duration}/g, departure.break_duration || 'N/A');
     
-    // Replace operator name with default value for now
-    announcementText = announcementText.replace(/{operator_name}/g, 'BookMeBus');
+    // Replace operator name from settings
+    announcementText = announcementText.replace(/{operator_name}/g, settings?.operator_name || 'BookMeBus');
     
     return announcementText;
   };
