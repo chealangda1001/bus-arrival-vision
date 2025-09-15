@@ -191,6 +191,13 @@ export const useDepartures = (branchId?: string) => {
     };
   }, [branchId]);
 
+  console.log('useDepartures hook - functions available:', {
+    updateDepartureVisibility: typeof updateDepartureVisibility,
+    addDeparture: typeof addDeparture,
+    updateDepartureStatus: typeof updateDepartureStatus,
+    deleteDeparture: typeof deleteDeparture
+  });
+
   return {
     departures,
     loading,

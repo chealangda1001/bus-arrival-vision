@@ -23,7 +23,9 @@ interface AdminPanelProps {
 }
 
 const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
-  const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = useDepartures(branchId);
+  const hookResult = useDepartures(branchId);
+  console.log('AdminPanel - received from useDepartures:', Object.keys(hookResult));
+  const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = hookResult;
   const { fleets } = useFleets(operatorId);
   const { toast } = useToast();
   
