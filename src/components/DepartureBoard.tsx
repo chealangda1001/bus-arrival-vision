@@ -5,6 +5,7 @@ import { Clock, MapPin, Truck } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useTranslatedData } from "@/hooks/useTranslatedData";
+import bookMeBusLogo from "@/assets/bookmebus-logo.png";
 
 interface DepartureBoardProps {
   currentTime: string;
@@ -243,6 +244,18 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
             <p className="text-text-display/60 text-xl">{t('no_departures')}</p>
           </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-center items-center py-6 mt-8 border-t border-border/20">
+        <div className="flex items-center space-x-3">
+          <span className="text-text-display/60 text-sm">Powered by</span>
+          <img 
+            src={bookMeBusLogo} 
+            alt="BookMeBus" 
+            className="h-8 opacity-80"
+          />
+        </div>
       </div>
     </div>
   );
