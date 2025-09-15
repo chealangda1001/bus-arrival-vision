@@ -157,14 +157,19 @@ serve(async (req) => {
       throw new Error('No valid speech segments found in script');
     }
 
-    // Generate cache key
-    const cacheKey = btoa(JSON.stringify({
+    // Generate cache key (Unicode-safe)
+    const keyData = {
       script,
       speechRate: speechRate || 1.0,
       pitchAdjustment: pitchAdjustment || 0,
       temperature: temperature || 0.7,
       styleInstructions: styleInstructions || DEFAULT_STYLE_INSTRUCTIONS
-    })).replace(/[+/=]/g, '');
+    };
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(JSON.stringify(keyData));
+    const base64 = btoa(String.fromCharCode(...Array.from(data)));
+    const cacheKey = base64.replace(/[+/=]/g, '');
 
     // Generate multi-speaker audio
     const audioData = await generateMultiSpeakerAudio(segments, {
