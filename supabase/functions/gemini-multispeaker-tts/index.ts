@@ -62,16 +62,116 @@ function parseScript(script: string): SpeakerSegment[] {
   return segments;
 }
 
+// Helper function to generate JWT for Google OAuth 2.0
+async function createJWT(serviceAccount: any): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const expiry = now + 3600; // 1 hour
+  
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT'
+  };
+  
+  const payload = {
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: expiry,
+    iat: now
+  };
+  
+  const encoder = new TextEncoder();
+  
+  // Encode header and payload
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+  
+  // Import the private key
+  const privateKeyPem = serviceAccount.private_key;
+  const privateKeyDer = pemToDer(privateKeyPem);
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    privateKeyDer,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256'
+    },
+    false,
+    ['sign']
+  );
+  
+  // Sign the token
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(unsignedToken)
+  );
+  
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  return `${unsignedToken}.${encodedSignature}`;
+}
+
+// Helper function to convert PEM to DER format
+function pemToDer(pem: string): ArrayBuffer {
+  const pemContent = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  
+  const binaryString = atob(pemContent);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+// Helper function to get OAuth 2.0 access token
+async function getAccessToken(serviceAccount: any): Promise<string> {
+  const jwt = await createJWT(serviceAccount);
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to get access token: ${response.status} - ${error}`);
+  }
+  
+  const result = await response.json();
+  return result.access_token;
+}
+
 async function generateMultiSpeakerAudio(
   segments: SpeakerSegment[], 
   config: TTSRequest
 ): Promise<string> {
-  const apiKey = Deno.env.get('GOOGLE_CLOUD_API_KEY');
-  if (!apiKey) {
-    throw new Error('Google Cloud API key not configured');
+  const serviceAccountJson = Deno.env.get('GOOGLE_CLOUD_API_KEY');
+  if (!serviceAccountJson) {
+    throw new Error('Google Cloud service account not configured');
   }
 
   try {
+    // Parse the service account JSON
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    
+    // Get OAuth 2.0 access token
+    console.log('Getting OAuth 2.0 access token...');
+    const accessToken = await getAccessToken(serviceAccount);
+    
     // Map our voice names to Google Cloud TTS speakers
     const voiceMapping = {
       'Zephyr': 'R', // Female voice for Khmer
@@ -102,12 +202,13 @@ async function generateMultiSpeakerAudio(
       }
     };
 
-    console.log('Sending request to Google Cloud TTS API:', JSON.stringify(requestBody, null, 2));
+    console.log('Sending request to Google Cloud TTS API with OAuth 2.0 authentication');
 
-    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+    const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify(requestBody)
     });
@@ -119,7 +220,7 @@ async function generateMultiSpeakerAudio(
     }
 
     const result = await response.json();
-    console.log('Google Cloud TTS API response received');
+    console.log('Google Cloud TTS API response received successfully');
     
     // Extract audio data from Google Cloud TTS response
     if (result.audioContent) {
