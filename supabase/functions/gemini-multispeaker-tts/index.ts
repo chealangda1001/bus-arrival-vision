@@ -66,42 +66,45 @@ async function generateMultiSpeakerAudio(
   segments: SpeakerSegment[], 
   config: TTSRequest
 ): Promise<string> {
-  const apiKey = Deno.env.get('GOOGLE_AI_STUDIO_API_KEY');
+  const apiKey = Deno.env.get('GOOGLE_CLOUD_API_KEY');
   if (!apiKey) {
-    throw new Error('Google AI Studio API key not configured');
+    throw new Error('Google Cloud API key not configured');
   }
 
   try {
-    // Create the multi-speaker request for Gemini API
+    // Map our voice names to Google Cloud TTS speakers
+    const voiceMapping = {
+      'Zephyr': 'R', // Female voice for Khmer
+      'Kore': 'S'    // Male voice for English
+    };
+
+    // Create multi-speaker turns for Google Cloud TTS
+    const turns = segments.map(segment => ({
+      text: segment.text,
+      speaker: voiceMapping[segment.voice as keyof typeof voiceMapping] || 'R'
+    }));
+
+    // Build request for Google Cloud Text-to-Speech API
     const requestBody = {
-      contents: [{
-        parts: [{
-          text: `Generate multi-speaker audio with the following configuration:
-          
-${config.styleInstructions || DEFAULT_STYLE_INSTRUCTIONS}
-
-Speakers and segments:
-${segments.map((seg, i) => `
-${i + 1}. Speaker: ${seg.voice} (${VOICE_CONFIG[seg.voice as keyof typeof VOICE_CONFIG]?.gender || 'unknown'}, ${VOICE_CONFIG[seg.voice as keyof typeof VOICE_CONFIG]?.tone || 'neutral'} tone)
-   Text: "${seg.text}"
-   Rate: ${(VOICE_CONFIG[seg.voice as keyof typeof VOICE_CONFIG]?.speechRate || 1.0) * (config.speechRate || 1.0)}
-   Pitch: ${(VOICE_CONFIG[seg.voice as keyof typeof VOICE_CONFIG]?.pitchAdjustment || 0) + (config.pitchAdjustment || 0)}
-`).join('\n')}
-
-Please generate a single cohesive audio file with all speakers in sequence.`
-        }]
-      }],
-      generationConfig: {
-        temperature: config.temperature || 0.7,
-        audioConfig: {
-          format: 'mp3',
-          sampleRate: 24000,
-          multiSpeaker: true
+      input: {
+        multiSpeakerMarkup: {
+          turns: turns
         }
+      },
+      voice: {
+        languageCode: 'en-US',
+        name: 'en-US-Studio-MultiSpeaker'
+      },
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: config.speechRate || 1.0,
+        pitch: config.pitchAdjustment || 0
       }
     };
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+    console.log('Sending request to Google Cloud TTS API:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,21 +114,19 @@ Please generate a single cohesive audio file with all speakers in sequence.`
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Gemini API error:', error);
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+      console.error('Google Cloud TTS API error:', error);
+      throw new Error(`Google Cloud TTS API error: ${response.status} - ${error}`);
     }
 
     const result = await response.json();
+    console.log('Google Cloud TTS API response received');
     
-    // Extract audio data from Gemini response
-    if (result.candidates && result.candidates[0] && result.candidates[0].content) {
-      const audioData = result.candidates[0].content.parts[0].inlineData?.data;
-      if (audioData) {
-        return audioData;
-      }
+    // Extract audio data from Google Cloud TTS response
+    if (result.audioContent) {
+      return result.audioContent;
     }
     
-    throw new Error('No audio data received from Gemini API');
+    throw new Error('No audio data received from Google Cloud TTS API');
     
   } catch (error) {
     console.error('Error generating multi-speaker audio:', error);
