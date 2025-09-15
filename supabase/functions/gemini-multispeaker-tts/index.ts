@@ -34,7 +34,8 @@ interface SpeakerSegment {
 const DEFAULT_STYLE_INSTRUCTIONS = `
 Create a professional airport flight announcement using multiple speakers. 
 Use a warm and friendly Khmer female voice (Zephyr) for the main announcement in Khmer, clear and polite, like a native announcer. 
-Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming. 
+Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming.
+Use a gentle and clear Chinese female voice (Luna) for the Chinese translation, sounding professional and courteous.
 Maintain a steady pace with natural pauses, like real airport announcements, and avoid robotic intonation.
 `;
 
@@ -52,6 +53,13 @@ const VOICE_CONFIG = {
     pitchAdjustment: 0,
     speechRate: 1.0,
     tone: 'firm'
+  },
+  'Luna': {
+    gender: 'female',
+    language: 'zh',
+    pitchAdjustment: 0,
+    speechRate: 0.9,
+    tone: 'gentle'
   }
 };
 
@@ -237,8 +245,8 @@ async function generateMultiSpeakerAudio(
         name: config.voiceSettings?.english?.voice === 'female' ? 'en-US-Standard-F' : 'en-US-Standard-D'
       },
       'zh': { 
-        languageCode: 'zh', 
-        name: config.voiceSettings?.chinese?.voice === 'male' ? 'zh-Standard-B' : 'zh-Standard-A'
+        languageCode: 'cmn-CN', 
+        name: config.voiceSettings?.chinese?.voice === 'male' ? 'cmn-CN-Standard-B' : 'cmn-CN-Standard-A'
       }
     };
 

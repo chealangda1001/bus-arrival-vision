@@ -65,9 +65,9 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string) => {
+  const generateMultiSpeakerAudio = async (khmerText: string, englishText: string, chineseText: string) => {
     try {
-      const script = formatAnnouncementScript(khmerText, englishText);
+      const script = formatAnnouncementScript(khmerText, englishText, chineseText);
       const cacheKey = generateMultiSpeakerCacheKey(
         script,
         0.9, // Slightly slower speech rate
@@ -184,7 +184,7 @@ export default function AnnouncementSystem({
 
       // Use multi-speaker Gemini TTS for AI-generated announcements
       setCurrentLanguage('multi');
-      const audioData = await generateMultiSpeakerAudio(khmerText, englishText);
+      const audioData = await generateMultiSpeakerAudio(khmerText, englishText, chineseText);
       setIsGenerating(false);
       
       // Play multi-speaker announcement for specified repeat count
@@ -313,9 +313,10 @@ export default function AnnouncementSystem({
           <div className="bg-background/50 rounded-lg p-4 border">
             <div className="text-sm mb-2 font-semibold flex items-center justify-between">
               <span>
-                {currentLanguage === 'multi' && '🎭 Multi-Speaker (Zephyr + Kore)'}
+                {currentLanguage === 'multi' && '🎭 Multi-Speaker (Zephyr + Kore + Luna)'}
                 {currentLanguage === 'english' && '🇺🇸 English (Kore)'}
                 {currentLanguage === 'khmer' && '🇰🇭 ខ្មែរ (Zephyr)'}
+                {currentLanguage === 'chinese' && '🇨🇳 中文 (Luna)'}
               </span>
               {isPlaying && (
                 <span className="text-xs text-muted-foreground">
@@ -333,11 +334,16 @@ export default function AnnouncementSystem({
                   <span className="text-xs text-primary font-medium">[Kore - English]</span><br />
                   {generateAnnouncementText(script.english, departure)}
                 </div>
+                <div className="text-text-display">
+                  <span className="text-xs text-primary font-medium">[Luna - Chinese]</span><br />
+                  {generateAnnouncementText(script.chinese, departure)}
+                </div>
               </div>
             ) : (
               <p className="text-text-display">
                 {currentLanguage === 'khmer' && generateAnnouncementText(script.khmer, departure)}
                 {currentLanguage === 'english' && generateAnnouncementText(script.english, departure)}
+                {currentLanguage === 'chinese' && generateAnnouncementText(script.chinese, departure)}
               </p>
             )}
           </div>

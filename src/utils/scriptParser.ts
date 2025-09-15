@@ -1,12 +1,12 @@
 export interface SpeakerSegment {
-  voice: 'Zephyr' | 'Kore';
+  voice: 'Zephyr' | 'Kore' | 'Luna';
   text: string;
-  language: 'km' | 'en';
+  language: 'km' | 'en' | 'zh';
 }
 
 export interface VoiceConfig {
   gender: 'male' | 'female';
-  language: 'km' | 'en';
+  language: 'km' | 'en' | 'zh';
   pitchAdjustment: number;
   speechRate: number;
   tone: string;
@@ -26,13 +26,21 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
     pitchAdjustment: 0,
     speechRate: 1.0,
     tone: 'firm'
+  },
+  Luna: {
+    gender: 'female',
+    language: 'zh',
+    pitchAdjustment: 0,
+    speechRate: 0.9,
+    tone: 'gentle'
   }
 };
 
 export const DEFAULT_STYLE_INSTRUCTIONS = `
 Create a professional airport flight announcement using multiple speakers. 
 Use a warm and friendly Khmer female voice (Zephyr) for the main announcement in Khmer, clear and polite, like a native announcer. 
-Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming. 
+Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming.
+Use a gentle and clear Chinese female voice (Luna) for the Chinese translation, sounding professional and courteous.
 Maintain a steady pace with natural pauses, like real airport announcements, and avoid robotic intonation.
 `;
 
@@ -48,13 +56,13 @@ export function parseScript(script: string): SpeakerSegment[] {
     const voiceMatch = line.match(/\[Voice:\s*(\w+)\]\s*(.+)/);
     if (voiceMatch) {
       const [, voice, text] = voiceMatch;
-      const voiceName = voice.trim() as 'Zephyr' | 'Kore';
+      const voiceName = voice.trim() as 'Zephyr' | 'Kore' | 'Luna';
       
       if (VOICE_CONFIGS[voiceName]) {
         segments.push({ 
           voice: voiceName, 
           text: text.trim(),
-          language: VOICE_CONFIGS[voiceName].language as 'km' | 'en'
+          language: VOICE_CONFIGS[voiceName].language as 'km' | 'en' | 'zh'
         });
       } else {
         // Default to Zephyr for unknown voices
@@ -67,11 +75,15 @@ export function parseScript(script: string): SpeakerSegment[] {
     } else if (line.trim()) {
       // Auto-detect language and assign appropriate voice
       const isKhmer = /[\u1780-\u17FF]/.test(line);
-      segments.push({ 
-        voice: isKhmer ? 'Zephyr' : 'Kore', 
-        text: line.trim(),
-        language: isKhmer ? 'km' : 'en'
-      });
+      const isChinese = /[\u4e00-\u9fff]/.test(line);
+      
+      if (isKhmer) {
+        segments.push({ voice: 'Zephyr', text: line.trim(), language: 'km' });
+      } else if (isChinese) {
+        segments.push({ voice: 'Luna', text: line.trim(), language: 'zh' });
+      } else {
+        segments.push({ voice: 'Kore', text: line.trim(), language: 'en' });
+      }
     }
   }
   
@@ -83,10 +95,17 @@ export function parseScript(script: string): SpeakerSegment[] {
  */
 export function formatAnnouncementScript(
   khmerText: string, 
-  englishText: string
+  englishText: string,
+  chineseText?: string
 ): string {
-  return `[Voice: Zephyr] ${khmerText}
+  let script = `[Voice: Zephyr] ${khmerText}
 [Voice: Kore] ${englishText}`;
+  
+  if (chineseText) {
+    script += `\n[Voice: Luna] ${chineseText}`;
+  }
+  
+  return script;
 }
 
 /**
@@ -131,9 +150,10 @@ export function validateScript(script: string): { isValid: boolean; errors: stri
   
   const hasKhmer = segments.some(s => s.language === 'km');
   const hasEnglish = segments.some(s => s.language === 'en');
+  const hasChinese = segments.some(s => s.language === 'zh');
   
-  if (!hasKhmer && !hasEnglish) {
-    errors.push('Script should contain at least Khmer or English text');
+  if (!hasKhmer && !hasEnglish && !hasChinese) {
+    errors.push('Script should contain at least Khmer, English, or Chinese text');
   }
   
   return {
