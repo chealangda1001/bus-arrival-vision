@@ -816,7 +816,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               <div className="space-y-2">
                                 <Input
                                   type="file"
-                                  accept="audio/mp3,audio/mpeg"
+                                  accept="audio/mp3,audio/mpeg,audio/wav"
                                   onChange={(e) => handleAudioUpload(e, departure.id, 'english')}
                                   disabled={uploadingAudio}
                                   className="text-sm"
@@ -843,7 +843,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               <div className="space-y-2">
                                 <Input
                                   type="file"
-                                  accept="audio/mp3,audio/mpeg"
+                                  accept="audio/mp3,audio/mpeg,audio/wav"
                                   onChange={(e) => handleAudioUpload(e, departure.id, 'khmer')}
                                   disabled={uploadingAudio}
                                   className="text-sm"
@@ -870,7 +870,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               <div className="space-y-2">
                                 <Input
                                   type="file"
-                                  accept="audio/mp3,audio/mpeg"
+                                  accept="audio/mp3,audio/mpeg,audio/wav"
                                   onChange={(e) => handleAudioUpload(e, departure.id, 'chinese')}
                                   disabled={uploadingAudio}
                                   className="text-sm"
