@@ -426,7 +426,8 @@ const SuperAdminPanel = () => {
       status: newDeparture.status,
       estimated_time: newDeparture.estimated_time || undefined,
       fleet_type: newDeparture.fleet_type,
-      fleet_image_url: newDeparture.fleet_image_url || undefined
+      fleet_image_url: newDeparture.fleet_image_url || undefined,
+      is_visible: true
     });
     
     setShowAddDeparture(null);

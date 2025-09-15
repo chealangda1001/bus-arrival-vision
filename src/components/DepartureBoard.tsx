@@ -14,10 +14,17 @@ interface DepartureBoardProps {
 }
 
 const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoardProps) => {
-  const { departures, loading } = useDepartures(branchId);
+  const { departures, loading, fetchPublicDepartures } = useDepartures(branchId);
   const { t, currentLanguage } = useTranslation();
   const { getTranslatedDestination, getTranslatedStatus, getTranslatedFleetType } = useTranslatedData();
   const [announcedDepartures, setAnnouncedDepartures] = useState<Set<string>>(new Set());
+
+  // Use effect to fetch only visible departures for public board
+  useEffect(() => {
+    if (fetchPublicDepartures) {
+      fetchPublicDepartures();
+    }
+  }, [branchId, fetchPublicDepartures]);
 
   const calculateCountdown = (departureTime: string): string => {
     const [hours, minutes] = departureTime.split(':').map(Number);
@@ -119,7 +126,7 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
 
       {/* Departures Grid */}
       <div className="grid gap-4">
-        {departures.map((departure, index) => {
+        {departures.filter(departure => departure.is_visible).map((departure, index) => {
           const countdown = calculateCountdown(departure.departure_time);
           const isBoarding = departure.status === "boarding";
           
@@ -239,7 +246,7 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
           );
         })}
         
-        {departures.length === 0 && (
+        {departures.filter(departure => departure.is_visible).length === 0 && (
           <div className="text-center py-12">
             <p className="text-text-display/60 text-xl">{t('no_departures')}</p>
           </div>

@@ -106,6 +106,7 @@ export type Database = {
           fleet_image_url: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id: string
+          is_visible: boolean | null
           khmer_audio_url: string | null
           plate_number: string
           status: string
@@ -123,6 +124,7 @@ export type Database = {
           fleet_image_url?: string | null
           fleet_type: Database["public"]["Enums"]["fleet_type"]
           id?: string
+          is_visible?: boolean | null
           khmer_audio_url?: string | null
           plate_number: string
           status: string
@@ -140,6 +142,7 @@ export type Database = {
           fleet_image_url?: string | null
           fleet_type?: Database["public"]["Enums"]["fleet_type"]
           id?: string
+          is_visible?: boolean | null
           khmer_audio_url?: string | null
           plate_number?: string
           status?: string

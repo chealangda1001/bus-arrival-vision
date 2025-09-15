@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit } from "lucide-react";
+import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +23,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
-  const { departures, loading, addDeparture, updateDepartureStatus, deleteDeparture, refetch } = useDepartures(branchId);
+  const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = useDepartures(branchId);
   const { fleets } = useFleets(operatorId);
   const { toast } = useToast();
   
@@ -132,6 +132,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       plate_number: selectedFleet?.plate_number || newDeparture.plate_number,
       fleet_type: selectedFleet?.fleet_type || newDeparture.fleet_type,
       fleet_image_url: selectedFleet?.fleet_image_url || newDeparture.fleet_image_url || undefined,
+      is_visible: true, // New departures are visible by default
     };
 
     await addDeparture(departureData);
@@ -194,6 +195,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           plate_number: selectedFleet?.plate_number || editDeparture.plate_number,
           fleet_type: selectedFleet?.fleet_type || editDeparture.fleet_type,
           fleet_image_url: selectedFleet?.fleet_image_url || editDeparture.fleet_image_url || null,
+          is_visible: true, // Keep visible when editing
           updated_at: new Date().toISOString()
         })
         .eq('id', editingDeparture);
@@ -589,6 +591,160 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         </Card>
         )}
 
+        {/* Edit Departure Form */}
+        {editMode && editingDeparture && (
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Edit Departure</CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={cancelEdit}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdateDeparture} className="grid grid-cols-2 gap-4">
+                {/* Fleet Selection */}
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="edit-fleet">Select Fleet (Optional)</Label>
+                  <Select 
+                    value={editDeparture.fleet_id} 
+                    onValueChange={(value) => 
+                      setEditDeparture(prev => ({...prev, fleet_id: value}))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an existing fleet or enter manually below" />
+                    </SelectTrigger>
+                    <SelectContent>
+                       <SelectItem value="manual">Manual Entry</SelectItem>
+                      {fleets.map((fleet) => (
+                        <SelectItem key={fleet.id} value={fleet.id}>
+                          {fleet.name} - {fleet.plate_number} ({fleet.fleet_type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Manual entry fields - only show when no fleet selected or manual selected */}
+                {(!editDeparture.fleet_id || editDeparture.fleet_id === "manual") && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-fleetType">Fleet Type *</Label>
+                      <Select 
+                        value={editDeparture.fleet_type} 
+                        onValueChange={(value: "VIP Van" | "Bus" | "Sleeping Bus") => 
+                          setEditDeparture(prev => ({...prev, fleet_type: value}))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="VIP Van">VIP Van</SelectItem>
+                          <SelectItem value="Bus">Bus</SelectItem>
+                          <SelectItem value="Sleeping Bus">Sleeping Bus</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-plateNumber">Plate Number</Label>
+                      <Input
+                        id="edit-plateNumber"
+                        value={editDeparture.plate_number}
+                        onChange={(e) => setEditDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                      />
+                    </div>
+                  </>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-destination">Destination *</Label>
+                  <Input
+                    id="edit-destination"
+                    value={editDeparture.destination}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, destination: e.target.value}))}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-plateNumber2">Plate Number</Label>
+                  <Input
+                    id="edit-plateNumber2"
+                    value={editDeparture.plate_number}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, plate_number: e.target.value}))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-departureTime">Departure Time *</Label>
+                  <Input
+                    id="edit-departureTime"
+                    type="time"
+                    value={editDeparture.departure_time}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, departure_time: e.target.value}))}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-estimatedTime">Estimated Time (if delayed)</Label>
+                  <Input
+                    id="edit-estimatedTime"
+                    type="time"
+                    value={editDeparture.estimated_time}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, estimated_time: e.target.value}))}
+                  />
+                </div>
+
+                {/* Fleet image only for manual entry */}
+                {(!editDeparture.fleet_id || editDeparture.fleet_id === "manual") && (
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="edit-fleetImage">Fleet Image (Optional)</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="edit-fleetImage"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file);
+                        }}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="text-sm text-muted-foreground">Uploading...</span>}
+                      {editDeparture.fleet_image_url && (
+                        <img 
+                          src={editDeparture.fleet_image_url} 
+                          alt="Fleet preview" 
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="col-span-2 flex gap-2">
+                  <Button type="submit" disabled={uploading}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Update Departure
+                  </Button>
+                  <Button type="button" variant="outline" onClick={cancelEdit}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Current Departures */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -733,7 +889,32 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                           {/* Admin Controls */}
                           {editMode && (
                             <div className="flex flex-col gap-2">
+                              {/* Visibility Status */}
+                              <div className="flex items-center gap-2 text-xs">
+                                {departure.is_visible ? (
+                                  <>
+                                    <Eye className="w-3 h-3 text-green-600" />
+                                    <span className="text-green-600">Public</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3 text-orange-600" />
+                                    <span className="text-orange-600">Hidden</span>
+                                  </>
+                                )}
+                              </div>
+
                               <div className="flex gap-2">
+                                {/* Visibility Toggle */}
+                                <Button
+                                  variant={departure.is_visible ? "default" : "secondary"}
+                                  size="sm"
+                                  onClick={() => updateDepartureVisibility(departure.id, !departure.is_visible)}
+                                  title={departure.is_visible ? "Hide from public board" : "Show on public board"}
+                                >
+                                  {departure.is_visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                </Button>
+
                                 {/* Play Voice Announcement Button */}
                                 <Button
                                   variant="secondary"
@@ -943,7 +1124,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         </TabsContent>
         
         <TabsContent value="settings" className="space-y-6">
-          <AnnouncementSystem />
+          <OperatorSettings operatorId={operatorId} />
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">

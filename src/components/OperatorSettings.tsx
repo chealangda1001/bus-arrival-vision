@@ -100,6 +100,7 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
     plate_number: "PP-1234",
     fleet_type: "Bus" as const,
     status: "boarding" as const,
+    is_visible: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };

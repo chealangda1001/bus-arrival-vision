@@ -15,6 +15,7 @@ export interface Departure {
   english_audio_url?: string;
   khmer_audio_url?: string;
   chinese_audio_url?: string;
+  is_visible: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -24,7 +25,7 @@ export const useDepartures = (branchId?: string) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchDepartures = async () => {
+  const fetchDepartures = async (publicOnly = false) => {
     try {
       let query = supabase
         .from('departures')
@@ -35,13 +36,18 @@ export const useDepartures = (branchId?: string) => {
         query = query.eq('branch_id', branchId);
       }
 
+      if (publicOnly) {
+        query = query.eq('is_visible', true);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
       
       setDepartures((data || []).map(item => ({
         ...item,
         status: item.status as Departure['status'],
-        fleet_type: item.fleet_type as Departure['fleet_type']
+        fleet_type: item.fleet_type as Departure['fleet_type'],
+        is_visible: item.is_visible ?? true
       })));
     } catch (error) {
       console.error('Error fetching departures:', error);
@@ -54,6 +60,8 @@ export const useDepartures = (branchId?: string) => {
       setLoading(false);
     }
   };
+
+  const fetchPublicDepartures = () => fetchDepartures(true);
 
   const addDeparture = async (departure: Omit<Departure, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -104,6 +112,31 @@ export const useDepartures = (branchId?: string) => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update departure",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateDepartureVisibility = async (id: string, isVisible: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('departures')
+        .update({ is_visible: isVisible })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await fetchDepartures();
+      
+      toast({
+        title: "Success",
+        description: `Departure ${isVisible ? 'shown' : 'hidden'} on public board`,
+      });
+    } catch (error) {
+      console.error('Error updating departure visibility:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update departure visibility",
         variant: "destructive",
       });
     }
@@ -163,7 +196,9 @@ export const useDepartures = (branchId?: string) => {
     loading,
     addDeparture,
     updateDepartureStatus,
+    updateDepartureVisibility,
     deleteDeparture,
     refetch: fetchDepartures,
+    fetchPublicDepartures,
   };
 };
