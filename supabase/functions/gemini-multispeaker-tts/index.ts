@@ -155,6 +155,25 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return result.access_token;
 }
 
+// Helper function to detect language from text
+function detectLanguage(text: string): string {
+  // Simple language detection based on character sets
+  const khmerRegex = /[\u1780-\u17FF]/;
+  const chineseRegex = /[\u4E00-\u9FFF]/;
+  
+  if (khmerRegex.test(text)) return 'km';
+  if (chineseRegex.test(text)) return 'zh';
+  return 'en'; // Default to English
+}
+
+// Helper function to concatenate base64 audio files
+function concatenateBase64Audio(audioFiles: string[]): string {
+  // For MP3 files, we can simply concatenate the base64 data
+  // This works because MP3 files can be concatenated at the byte level
+  const combinedAudio = audioFiles.join('');
+  return combinedAudio;
+}
+
 async function generateMultiSpeakerAudio(
   segments: SpeakerSegment[], 
   config: TTSRequest
@@ -172,62 +191,72 @@ async function generateMultiSpeakerAudio(
     console.log('Getting OAuth 2.0 access token...');
     const accessToken = await getAccessToken(serviceAccount);
     
-    // Map our voice names to Google Cloud TTS speakers
+    // Map languages and voices to Google Cloud TTS standard voices
     const voiceMapping = {
-      'Zephyr': 'R', // Female voice for Khmer
-      'Kore': 'S'    // Male voice for English
+      'km': { languageCode: 'en-US', name: 'en-US-Standard-F' }, // Use English female for Khmer (fallback)
+      'en': { languageCode: 'en-US', name: 'en-US-Standard-D' }, // English male
+      'zh': { languageCode: 'zh', name: 'zh-Standard-A' }        // Chinese standard
     };
 
-    // Create multi-speaker turns for Google Cloud TTS
-    const turns = segments.map(segment => ({
-      text: segment.text,
-      speaker: voiceMapping[segment.voice as keyof typeof voiceMapping] || 'R'
-    }));
+    const audioFiles: string[] = [];
 
-    // Build request for Google Cloud Text-to-Speech API
-    const requestBody = {
-      input: {
-        multiSpeakerMarkup: {
-          turns: turns
+    // Generate separate audio for each segment
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const language = detectLanguage(segment.text);
+      const voice = voiceMapping[language as keyof typeof voiceMapping] || voiceMapping['en'];
+      
+      console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
+
+      // Build request for Google Cloud Text-to-Speech API
+      const requestBody = {
+        input: {
+          text: segment.text
+        },
+        voice: {
+          languageCode: voice.languageCode,
+          name: voice.name,
+          ssmlGender: language === 'en' ? 'MALE' : 'FEMALE'
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: config.speechRate || (language === 'km' ? 0.8 : 1.0),
+          pitch: config.pitchAdjustment || 0
         }
-      },
-      voice: {
-        languageCode: 'en-US',
-        name: 'en-US-Studio-MultiSpeaker'
-      },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        speakingRate: config.speechRate || 1.0,
-        pitch: config.pitchAdjustment || 0
+      };
+
+      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(`Google Cloud TTS API error for segment ${i + 1}:`, error);
+        throw new Error(`Google Cloud TTS API error for segment ${i + 1}: ${response.status} - ${error}`);
       }
-    };
 
-    console.log('Sending request to Google Cloud TTS API with OAuth 2.0 authentication');
-
-    const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Google Cloud TTS API error:', error);
-      throw new Error(`Google Cloud TTS API error: ${response.status} - ${error}`);
+      const result = await response.json();
+      
+      if (result.audioContent) {
+        audioFiles.push(result.audioContent);
+        console.log(`Successfully generated audio for segment ${i + 1}`);
+      } else {
+        throw new Error(`No audio data received for segment ${i + 1}`);
+      }
     }
 
-    const result = await response.json();
-    console.log('Google Cloud TTS API response received successfully');
+    console.log(`Successfully generated ${audioFiles.length} audio segments, concatenating...`);
     
-    // Extract audio data from Google Cloud TTS response
-    if (result.audioContent) {
-      return result.audioContent;
-    }
+    // Concatenate all audio files
+    const combinedAudio = concatenateBase64Audio(audioFiles);
     
-    throw new Error('No audio data received from Google Cloud TTS API');
+    console.log('Successfully concatenated all audio segments');
+    return combinedAudio;
     
   } catch (error) {
     console.error('Error generating multi-speaker audio:', error);
