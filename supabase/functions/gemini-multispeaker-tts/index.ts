@@ -39,30 +39,6 @@ Use a gentle and clear Chinese female voice (Luna) for the Chinese translation, 
 Maintain a steady pace with natural pauses, like real airport announcements, and avoid robotic intonation.
 `;
 
-const VOICE_CONFIG = {
-  'Zephyr': {
-    gender: 'female',
-    language: 'km',
-    pitchAdjustment: 1,
-    speechRate: 0.8, // Slower for Khmer
-    tone: 'warm'
-  },
-  'Kore': {
-    gender: 'male', 
-    language: 'en',
-    pitchAdjustment: 0,
-    speechRate: 1.0,
-    tone: 'firm'
-  },
-  'Luna': {
-    gender: 'female',
-    language: 'zh',
-    pitchAdjustment: 0,
-    speechRate: 0.9,
-    tone: 'gentle'
-  }
-};
-
 function parseScript(script: string): SpeakerSegment[] {
   const segments: SpeakerSegment[] = [];
   const lines = script.split('\n').filter(line => line.trim());
@@ -79,99 +55,6 @@ function parseScript(script: string): SpeakerSegment[] {
   }
   
   return segments;
-}
-
-// Helper function to generate JWT for Google OAuth 2.0
-async function createJWT(serviceAccount: any): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const expiry = now + 3600; // 1 hour
-  
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT'
-  };
-  
-  const payload = {
-    iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: expiry,
-    iat: now
-  };
-  
-  const encoder = new TextEncoder();
-  
-  // Encode header and payload
-  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  
-  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-  
-  // Import the private key
-  const privateKeyPem = serviceAccount.private_key;
-  const privateKeyDer = pemToDer(privateKeyPem);
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    privateKeyDer,
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      hash: 'SHA-256'
-    },
-    false,
-    ['sign']
-  );
-  
-  // Sign the token
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    encoder.encode(unsignedToken)
-  );
-  
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  
-  return `${unsignedToken}.${encodedSignature}`;
-}
-
-// Helper function to convert PEM to DER format
-function pemToDer(pem: string): ArrayBuffer {
-  const pemContent = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  
-  const binaryString = atob(pemContent);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-// Helper function to get OAuth 2.0 access token
-async function getAccessToken(serviceAccount: any): Promise<string> {
-  const jwt = await createJWT(serviceAccount);
-  
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt
-    })
-  });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to get access token: ${response.status} - ${error}`);
-  }
-  
-  const result = await response.json();
-  return result.access_token;
 }
 
 // Helper function to detect language from text
@@ -197,18 +80,6 @@ function getLanguageSpeed(language: string, voiceSettings?: any): number | undef
   }
 }
 
-// Helper function to get language-specific pitch setting
-function getLanguagePitch(language: string, voiceSettings?: any): number | undefined {
-  if (!voiceSettings) return undefined;
-  
-  switch (language) {
-    case 'km': return voiceSettings.khmer?.pitch;
-    case 'en': return voiceSettings.english?.pitch;
-    case 'zh': return voiceSettings.chinese?.pitch;
-    default: return undefined;
-  }
-}
-
 // Helper function to concatenate base64 audio files
 function concatenateBase64Audio(audioFiles: string[]): string {
   // For MP3 files, we can simply concatenate the base64 data
@@ -221,85 +92,67 @@ async function generateMultiSpeakerAudio(
   segments: SpeakerSegment[], 
   config: TTSRequest
 ): Promise<string> {
-  const serviceAccountJson = Deno.env.get('GOOGLE_CLOUD_API_KEY');
-  if (!serviceAccountJson) {
-    throw new Error('Google Cloud service account not configured');
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured');
   }
 
   try {
-    // Parse the service account JSON
-    const serviceAccount = JSON.parse(serviceAccountJson);
-    
-    // Get OAuth 2.0 access token
-    console.log('Getting OAuth 2.0 access token...');
-    const accessToken = await getAccessToken(serviceAccount);
-    
-    // Map languages and voices to Google Cloud TTS standard voices based on operator settings
-    const voiceMapping = {
-      'km': { 
-        languageCode: 'en-US', 
-        name: config.voiceSettings?.khmer?.voice === 'male' ? 'en-US-Standard-D' : 'en-US-Standard-F'
-      },
-      'en': { 
-        languageCode: 'en-US', 
-        name: config.voiceSettings?.english?.voice === 'female' ? 'en-US-Standard-F' : 'en-US-Standard-D'
-      },
-      'zh': { 
-        languageCode: 'cmn-CN', 
-        name: config.voiceSettings?.chinese?.voice === 'male' ? 'cmn-CN-Standard-B' : 'cmn-CN-Standard-A'
-      }
-    };
-
     const audioFiles: string[] = [];
 
-    // Generate separate audio for each segment
+    // Map voices to OpenAI TTS voices for better multi-language support
+    const voiceMapping = {
+      'Zephyr': 'alloy',  // Female voice for Khmer
+      'Kore': 'echo',     // Male voice for English  
+      'Luna': 'nova'      // Female voice for Chinese
+    };
+
+    // Generate separate audio for each segment using OpenAI TTS
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       const language = detectLanguage(segment.text);
-      const voice = voiceMapping[language as keyof typeof voiceMapping] || voiceMapping['en'];
+      const openaiVoice = voiceMapping[segment.voice as keyof typeof voiceMapping] || 'alloy';
       
-      console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
+      console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}) using ${segment.voice} -> ${openaiVoice}: ${segment.text.substring(0, 50)}...`);
 
-      // Build request for Google Cloud Text-to-Speech API
-      const requestBody = {
-        input: {
-          text: segment.text
-        },
-        voice: {
-          languageCode: voice.languageCode,
-          name: voice.name,
-          ssmlGender: voice.name.includes('F') ? 'FEMALE' : 'MALE'
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          speakingRate: getLanguageSpeed(language, config.voiceSettings) || config.speechRate || 1.0,
-          pitch: getLanguagePitch(language, config.voiceSettings) || config.pitchAdjustment || 0
-        }
-      };
+      // Get language-specific settings
+      const speechRate = getLanguageSpeed(language, config.voiceSettings) || config.speechRate || 1.0;
 
-      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: segment.text,
+          voice: openaiVoice,
+          response_format: 'mp3',
+          speed: Math.max(0.25, Math.min(4.0, speechRate)),
+        }),
       });
 
       if (!response.ok) {
         const error = await response.text();
-        console.error(`Google Cloud TTS API error for segment ${i + 1}:`, error);
-        throw new Error(`Google Cloud TTS API error for segment ${i + 1}: ${response.status} - ${error}`);
+        console.error(`OpenAI TTS API error for segment ${i + 1}:`, error);
+        throw new Error(`OpenAI TTS API error for segment ${i + 1}: ${response.status} - ${error}`);
       }
 
-      const result = await response.json();
+      // Convert to base64 using chunked approach to avoid stack overflow
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
       
-      if (result.audioContent) {
-        audioFiles.push(result.audioContent);
-        console.log(`Successfully generated audio for segment ${i + 1}`);
-      } else {
-        throw new Error(`No audio data received for segment ${i + 1}`);
+      // Process in chunks to avoid "Maximum call stack size exceeded"
+      let base64Audio = '';
+      const chunkSize = 8192;
+      for (let j = 0; j < uint8Array.length; j += chunkSize) {
+        const chunk = uint8Array.slice(j, j + chunkSize);
+        base64Audio += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
       }
+
+      audioFiles.push(base64Audio);
+      console.log(`Successfully generated audio for segment ${i + 1}`);
     }
 
     console.log(`Successfully generated ${audioFiles.length} audio segments, concatenating...`);
@@ -354,7 +207,7 @@ serve(async (req) => {
     const base64 = btoa(String.fromCharCode(...Array.from(data)));
     const cacheKey = base64.replace(/[+/=]/g, '');
 
-    // Generate multi-speaker audio
+    // Generate multi-speaker audio using OpenAI TTS
     const audioData = await generateMultiSpeakerAudio(segments, {
       script,
       operatorId,
