@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface VoiceSettings {
+  voice: 'male' | 'female';
+  speed: number;
+  pitch: number;
+}
+
 interface TTSRequest {
   script: string;
   operatorId: string;
@@ -13,6 +19,11 @@ interface TTSRequest {
   pitchAdjustment?: number;
   temperature?: number;
   styleInstructions?: string;
+  voiceSettings?: {
+    khmer: VoiceSettings;
+    english: VoiceSettings;
+    chinese: VoiceSettings;
+  };
 }
 
 interface SpeakerSegment {
@@ -166,6 +177,30 @@ function detectLanguage(text: string): string {
   return 'en'; // Default to English
 }
 
+// Helper function to get language-specific speed setting
+function getLanguageSpeed(language: string, voiceSettings?: any): number | undefined {
+  if (!voiceSettings) return undefined;
+  
+  switch (language) {
+    case 'km': return voiceSettings.khmer?.speed;
+    case 'en': return voiceSettings.english?.speed;
+    case 'zh': return voiceSettings.chinese?.speed;
+    default: return undefined;
+  }
+}
+
+// Helper function to get language-specific pitch setting
+function getLanguagePitch(language: string, voiceSettings?: any): number | undefined {
+  if (!voiceSettings) return undefined;
+  
+  switch (language) {
+    case 'km': return voiceSettings.khmer?.pitch;
+    case 'en': return voiceSettings.english?.pitch;
+    case 'zh': return voiceSettings.chinese?.pitch;
+    default: return undefined;
+  }
+}
+
 // Helper function to concatenate base64 audio files
 function concatenateBase64Audio(audioFiles: string[]): string {
   // For MP3 files, we can simply concatenate the base64 data
@@ -191,11 +226,20 @@ async function generateMultiSpeakerAudio(
     console.log('Getting OAuth 2.0 access token...');
     const accessToken = await getAccessToken(serviceAccount);
     
-    // Map languages and voices to Google Cloud TTS standard voices
+    // Map languages and voices to Google Cloud TTS standard voices based on operator settings
     const voiceMapping = {
-      'km': { languageCode: 'en-US', name: 'en-US-Standard-F' }, // Use English female for Khmer (fallback)
-      'en': { languageCode: 'en-US', name: 'en-US-Standard-D' }, // English male
-      'zh': { languageCode: 'zh', name: 'zh-Standard-A' }        // Chinese standard
+      'km': { 
+        languageCode: 'en-US', 
+        name: config.voiceSettings?.khmer?.voice === 'male' ? 'en-US-Standard-D' : 'en-US-Standard-F'
+      },
+      'en': { 
+        languageCode: 'en-US', 
+        name: config.voiceSettings?.english?.voice === 'female' ? 'en-US-Standard-F' : 'en-US-Standard-D'
+      },
+      'zh': { 
+        languageCode: 'zh', 
+        name: config.voiceSettings?.chinese?.voice === 'male' ? 'zh-Standard-B' : 'zh-Standard-A'
+      }
     };
 
     const audioFiles: string[] = [];
@@ -216,12 +260,12 @@ async function generateMultiSpeakerAudio(
         voice: {
           languageCode: voice.languageCode,
           name: voice.name,
-          ssmlGender: language === 'en' ? 'MALE' : 'FEMALE'
+          ssmlGender: voice.name.includes('F') ? 'FEMALE' : 'MALE'
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: config.speechRate || (language === 'km' ? 0.8 : 1.0),
-          pitch: config.pitchAdjustment || 0
+          speakingRate: getLanguageSpeed(language, config.voiceSettings) || config.speechRate || 1.0,
+          pitch: getLanguagePitch(language, config.voiceSettings) || config.pitchAdjustment || 0
         }
       };
 

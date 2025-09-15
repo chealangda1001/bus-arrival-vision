@@ -363,8 +363,11 @@ export type Database = {
           created_at: string
           id: string
           operator_id: string
+          style_instructions: string | null
+          temperature: number | null
           updated_at: string
           voice_enabled: boolean
+          voice_settings: Json | null
         }
         Insert: {
           announcement_repeat_count?: number
@@ -373,8 +376,11 @@ export type Database = {
           created_at?: string
           id?: string
           operator_id: string
+          style_instructions?: string | null
+          temperature?: number | null
           updated_at?: string
           voice_enabled?: boolean
+          voice_settings?: Json | null
         }
         Update: {
           announcement_repeat_count?: number
@@ -383,8 +389,11 @@ export type Database = {
           created_at?: string
           id?: string
           operator_id?: string
+          style_instructions?: string | null
+          temperature?: number | null
           updated_at?: string
           voice_enabled?: boolean
+          voice_settings?: Json | null
         }
         Relationships: [
           {

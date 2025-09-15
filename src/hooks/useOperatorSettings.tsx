@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
+export interface VoiceSettings {
+  voice: 'male' | 'female';
+  speed: number;
+  pitch: number;
+}
+
 export interface OperatorSettings {
   id: string;
   operator_id: string;
@@ -13,6 +19,13 @@ export interface OperatorSettings {
   };
   voice_enabled: boolean;
   auto_announcement_enabled: boolean;
+  style_instructions: string;
+  temperature: number;
+  voice_settings: {
+    khmer: VoiceSettings;
+    english: VoiceSettings;
+    chinese: VoiceSettings;
+  };
 }
 
 export const useOperatorSettings = (operatorId?: string) => {
@@ -60,12 +73,19 @@ export const useOperatorSettings = (operatorId?: string) => {
       operator_id: operatorId,
       announcement_repeat_count: 3,
       announcement_scripts: {
-        english: "Attention passengers, {fleet_type} service to {destination} will depart at {time}. Bus plate number {plate}. Please proceed to the boarding area.",
-        khmer: "សូមអ្នកដំណើរ សេវាកម្ម {fleet_type} ទៅ {destination} នឹងចេញនៅម៉ោង {time}។ លេខផ្ទាំងឡាន {plate}។ សូមទៅកាន់តំបន់ឡើងឡាន។",
-        chinese: "乘客请注意，{fleet_type}开往{destination}的班车将于{time}发车。车牌号{plate}。请前往候车区域。"
+        khmer: "សូមអញ្ជើញអ្នកដំណើរទាំងអស់, ដែលកំពុងធ្វើដំណើរ, ទៅកាន់{destination}, តាមរយៈឡាន{fleet_type}, អញ្ជើញឡើងរថយន្ត, ដែលមានស្លាកលេខ, {fleet_plate_number}, យើងនឹងចាក់ចេញដំណើរទៅកាន់ {destination} ក្នុងពេលបន្តិចទៀតនេះ, ហើយការធ្វើដំណើរនេះមានរយៈពេលប្រហែល {trip_duration} ម៉ោង, យើងនឹងមានការឈប់សំរាកប្រមាណ {break_duration} នាទី, សម្រាប់អ្នកទាំងអស់គ្នាទៅបន្ទប់ទឹក ឬទិញអាហារតិចតួច, យើងនឹងទៅដល់ {destination} ប្រមាណ {trip_duration} ម៉ោងបន្ទាប់, សូមអរគុណសម្រាប់ការធ្វើដំណើររបស់អ្នក, ជាមួយក្រុមហ៊ុន, {operator_name}, យើងខ្ញុំសូមជូនពរអស់លោក, លោកស្រី, ឲ្យធ្វើដំណើរប្រកបដោយសុវត្ថិភាព សូមអរគុណ",
+        english: "Attention please. Passengers traveling to {destination}, please proceed to the boarding gate, we will be departing soon. We will be traveling to {destination}, and the journey will take about {trip_duration} hours, We will have a {break_duration} minute break so everyone can use the restroom or grab a quick snack, We will arrive in {destination} in around {trip_duration} hours. We wish you a safe and enjoyable bus ride. Thank you for traveling with {operator_name}!",
+        chinese: "各位旅客请注意：前往 {destination} 的乘客请前往登车口，我们即将出发。本次行程将前往 {destination} ，全程大约 {trip_duration} 小时。途中我们会停靠一次，休息 {break_duration} 分钟，方便大家使用洗手间或购买一些小吃。预计 {trip_duration} 小时后抵达 {destination}。祝您旅途平安愉快！感谢您选择 {operator_name}！"
       },
       voice_enabled: true,
-      auto_announcement_enabled: true
+      auto_announcement_enabled: true,
+      style_instructions: "Use a professional airport flight announcement using multiple speakers. Use a warm and friendly Khmer female voice (Zephyr) for the main announcement in Khmer, clear and polite, like a native announcer. Use a firm and neutral male voice (Kore) for the English translation, sounding official but welcoming. Maintain a steady pace with natural pauses, like real airport announcements, and avoid robotic intonation.",
+      temperature: 0.7,
+      voice_settings: {
+        khmer: { voice: 'female', speed: 0.9, pitch: 0.0 },
+        english: { voice: 'male', speed: 1.0, pitch: 0.0 },
+        chinese: { voice: 'female', speed: 0.9, pitch: 0.0 }
+      }
     };
 
     try {
@@ -86,9 +106,18 @@ export const useOperatorSettings = (operatorId?: string) => {
     if (!settings) return;
 
     try {
+      // Convert voice_settings to proper JSON format for database
+      const dbUpdate: any = { ...updatedSettings };
+      if (updatedSettings.voice_settings) {
+        dbUpdate.voice_settings = updatedSettings.voice_settings as any;
+      }
+      if (updatedSettings.announcement_scripts) {
+        dbUpdate.announcement_scripts = updatedSettings.announcement_scripts as any;
+      }
+
       const { data, error } = await supabase
         .from('operator_settings')
-        .update(updatedSettings)
+        .update(dbUpdate)
         .eq('id', settings.id)
         .select()
         .single();
