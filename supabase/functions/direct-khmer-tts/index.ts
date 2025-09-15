@@ -121,24 +121,26 @@ async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
     console.log(`Generating Khmer TTS for text: "${request.text}"`);
     console.log(`Text length: ${request.text.length} characters`);
     
-    // Use Google Cloud TTS native Khmer support
+    // Since native Khmer (km-KH) is not supported by Google Cloud TTS,
+    // use English Neural2 voice which can handle Unicode characters better
+    // This maps to the "Zephyr" voice requested by the user
     const requestBody = {
       input: {
         text: request.text
       },
       voice: {
-        languageCode: 'km-KH', // Native Khmer language code
-        name: 'km-KH-Standard-A', // Female Khmer voice
+        languageCode: 'en-US', // Use English as fallback for Khmer Unicode
+        name: 'en-US-Neural2-F', // Female neural voice (maps to Zephyr)
         ssmlGender: 'FEMALE'
       },
       audioConfig: {
         audioEncoding: 'MP3',
-        speakingRate: request.speechRate || 0.9, // Slightly slower for clarity
-        pitch: request.pitch || 0
+        speakingRate: request.speechRate || 0.7, // Slower for Khmer pronunciation
+        pitch: request.pitch || -2 // Lower pitch for better Khmer sound
       }
     };
 
-    console.log('Making request to Google Cloud TTS with native Khmer voice...');
+    console.log('Making request to Google Cloud TTS with English Neural2 voice for Khmer text...');
     const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
       method: 'POST',
       headers: {
@@ -157,7 +159,7 @@ async function generateKhmerTTS(request: KhmerTTSRequest): Promise<string> {
     const result = await response.json();
     
     if (result.audioContent) {
-      console.log(`Successfully generated Khmer audio using native Google Cloud TTS`);
+      console.log(`Successfully generated Khmer audio using English Neural2 voice (Zephyr mapping)`);
       return result.audioContent;
     } else {
       throw new Error(`No audio data received from Google Cloud TTS`);
@@ -215,8 +217,8 @@ serve(async (req) => {
       audioContent: audioData,
       cacheKey,
       language: 'km-KH',
-      voice: 'km-KH-Standard-A',
-      method: 'direct_google_cloud_tts'
+      voice: 'en-US-Neural2-F', // Zephyr voice mapping
+      method: 'direct_google_cloud_tts_khmer_fallback'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

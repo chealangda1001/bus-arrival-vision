@@ -238,10 +238,9 @@ async function generateMultiSpeakerAudio(
     // Map voice models to Google Cloud TTS voices with native Khmer support
     const getVoiceForLanguage = (language: string, voiceSettings?: any) => {
       // Voice model mapping for supported languages
+      // Note: Khmer (km-KH) is not natively supported by Google Cloud TTS
       const voiceModels = {
-        'Zephyr': language === 'km' ? 
-          { languageCode: 'km-KH', name: 'km-KH-Standard-A' } : // Native Khmer voice
-          { languageCode: 'en-US', name: 'en-US-Neural2-F' },  // English fallback
+        'Zephyr': { languageCode: 'en-US', name: 'en-US-Neural2-F' }, // Always use English Neural2 F for Zephyr (handles Khmer Unicode)
         'Kore': { languageCode: 'en-US', name: 'en-US-Neural2-D' },   // Male neural voice for English
         'Luna': { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-A' } // Female voice for Chinese
       };
@@ -266,10 +265,10 @@ async function generateMultiSpeakerAudio(
 
       // Final fallback based on language and gender
       if (language === 'km') {
-        // Native Khmer support
+        // Khmer fallback using English Neural2 voices (better Unicode handling)
         return {
-          languageCode: 'km-KH',
-          name: voiceSettings?.khmer?.voice === 'male' ? 'km-KH-Standard-B' : 'km-KH-Standard-A'
+          languageCode: 'en-US',
+          name: voiceSettings?.khmer?.voice === 'male' ? 'en-US-Neural2-D' : 'en-US-Neural2-F'
         };
       } else if (language === 'zh') {
         return {
@@ -294,9 +293,9 @@ async function generateMultiSpeakerAudio(
       const language = detectLanguage(segment.text);
       const voice = getVoiceForLanguage(language, config.voiceSettings);
       
-      // Use native Khmer support when available
+      // Use English Neural2 voice for Khmer (fallback approach)
       if (language === 'km') {
-        console.log(`Using native Google Cloud TTS Khmer support for better pronunciation`);
+        console.log(`Using English Neural2 voice for Khmer text (Zephyr mapping) - better Unicode handling`);
       }
       
       console.log(`Generating audio for segment ${i + 1}/${segments.length} (${language}): ${segment.text.substring(0, 50)}...`);
@@ -315,8 +314,8 @@ async function generateMultiSpeakerAudio(
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: getLanguageSpeed(language, config.voiceSettings) || config.speechRate || 1.0,
-          pitch: getLanguagePitch(language, config.voiceSettings) || config.pitchAdjustment || 0
+          speakingRate: language === 'km' ? 0.7 : (getLanguageSpeed(language, config.voiceSettings) || config.speechRate || 1.0),
+          pitch: language === 'km' ? -2 : (getLanguagePitch(language, config.voiceSettings) || config.pitchAdjustment || 0)
         }
       };
 
