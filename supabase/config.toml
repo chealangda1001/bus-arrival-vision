@@ -57,11 +57,5 @@ enabled = true
 port = 54328
 ip_version = "ipv4"
 
-[functions.khmer-tts-synthesizer]
-verify_jwt = false
-
-[functions.khmer-voice-evaluator]
-verify_jwt = false
-
 [functions.gemini-multispeaker-tts]
 verify_jwt = false
