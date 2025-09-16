@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical } from "lucide-react";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
 import { supabase } from "@/integrations/supabase/client";
@@ -895,15 +896,9 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                         </div>
                       </div>
 
-                      {/* Departure Information */}
+                      {/* Destination */}
                       <div className="col-span-3">
                         <div className="space-y-2">
-                          {departure.leaving_from && (
-                            <div>
-                              <span className="text-sm text-text-display/60 font-medium">Leaving From:</span>
-                              <div className="text-lg font-semibold text-text-display">{departure.leaving_from}</div>
-                            </div>
-                          )}
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Destination:</span>
                             <h3 className="text-xl font-bold text-text-display">{departure.destination}</h3>
@@ -927,7 +922,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Plate Number */}
-                      <div className="col-span-1">
+                      <div className="col-span-2">
                         {departure.plate_number && (
                           <div className="space-y-2">
                             <div>
@@ -954,9 +949,72 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                         </div>
                       </div>
 
-                      {/* Status & Admin Controls */}
-                      <div className="col-span-3">
-                        <div className="text-right space-y-3">
+                      {/* Actions Menu */}
+                      <div className="col-span-1 flex justify-end">
+                        {editMode && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {/* Visibility Status */}
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-2">
+                                {departure.is_visible ? (
+                                  <>
+                                    <Eye className="w-3 h-3 text-green-600" />
+                                    <span className="text-green-600">Public</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3 text-orange-600" />
+                                    <span className="text-orange-600">Hidden</span>
+                                  </>
+                                )}
+                              </div>
+                              <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem onClick={() => updateDepartureVisibility(departure.id, !departure.is_visible)}>
+                                {departure.is_visible ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                                {departure.is_visible ? "Hide from public" : "Show on public"}
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem onClick={() => triggerManualAnnouncement(departure.id)}>
+                                <Play className="w-4 h-4 mr-2" />
+                                Play announcement
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem onClick={() => setUploadingAudioForDeparture(departure.id)}>
+                                <Volume2 className="w-4 h-4 mr-2" />
+                                Upload audio
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem onClick={() => handleEditDeparture(departure)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit departure
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem 
+                                onClick={() => deleteDeparture(departure.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete departure
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status and Audio Info - Second Row */}
+                    <div className="grid grid-cols-12 gap-4 items-center mt-4 pt-4 border-t border-border/10">
+                      {/* Status */}
+                      <div className="col-span-4">
+                        <div className="space-y-2">
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Status:</span>
                             <div className="mt-1">
@@ -970,10 +1028,14 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               )}
                             </div>
                           </div>
-                          
-                          {/* Audio Status Indicators */}
-                          <div className="text-left">
-                            <span className="text-xs text-text-display/60 font-medium">Audio Files:</span>
+                        </div>
+                      </div>
+
+                      {/* Audio Status Indicators */}
+                      <div className="col-span-4">
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-xs text-text-display/60 font-medium">Audio:</span>
                             <div className="flex flex-wrap gap-1 mt-1">
                               {departure.english_audio_url && (
                                 <Badge variant="secondary" className="text-xs">EN</Badge>
@@ -989,99 +1051,29 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               )}
                             </div>
                           </div>
-                          
-                          {/* Admin Controls */}
-                          {editMode && (
-                            <div className="flex flex-col gap-2">
-                              {/* Visibility Status */}
-                              <div className="flex items-center gap-2 text-xs">
-                                {departure.is_visible ? (
-                                  <>
-                                    <Eye className="w-3 h-3 text-green-600" />
-                                    <span className="text-green-600">Public</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <EyeOff className="w-3 h-3 text-orange-600" />
-                                    <span className="text-orange-600">Hidden</span>
-                                  </>
-                                )}
-                              </div>
-
-                              <div className="flex gap-2">
-                                {/* Visibility Toggle */}
-                                <Button
-                                  variant={departure.is_visible ? "default" : "secondary"}
-                                  size="sm"
-                                  onClick={() => updateDepartureVisibility(departure.id, !departure.is_visible)}
-                                  title={departure.is_visible ? "Hide from public board" : "Show on public board"}
-                                >
-                                  {departure.is_visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                </Button>
-
-                                {/* Play Voice Announcement Button */}
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => triggerManualAnnouncement(departure.id)}
-                                  title="Play voice announcement"
-                                  className="flex-1"
-                                >
-                                  <Play className="w-4 h-4 mr-1" />
-                                  Play
-                                </Button>
-                                
-                                {/* Upload Audio Button */}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setUploadingAudioForDeparture(departure.id)}
-                                  title="Upload custom audio files"
-                                >
-                                  <Volume2 className="w-4 h-4" />
-                                </Button>
-                                
-                                {/* Edit Button */}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditDeparture(departure)}
-                                  title="Edit departure"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                
-                                {/* Delete Button */}
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => deleteDeparture(departure.id)}
-                                  title="Delete departure"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                              
-                              {/* Status Dropdown */}
-                              <Select 
-                                value={departure.status} 
-                                onValueChange={(value: Departure['status']) => 
-                                  handleUpdateStatus(departure.id, value)
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="on-time">On Time</SelectItem>
-                                  <SelectItem value="delayed">Delayed</SelectItem>
-                                  <SelectItem value="boarding">Boarding</SelectItem>
-                                  <SelectItem value="departed">Departed</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
                         </div>
+                      </div>
+
+                      {/* Status Dropdown */}
+                      <div className="col-span-4">
+                        {editMode && (
+                          <Select 
+                            value={departure.status} 
+                            onValueChange={(value: Departure['status']) => 
+                              handleUpdateStatus(departure.id, value)
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="on-time">On Time</SelectItem>
+                              <SelectItem value="delayed">Delayed</SelectItem>
+                              <SelectItem value="boarding">Boarding</SelectItem>
+                              <SelectItem value="departed">Departed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
                     
