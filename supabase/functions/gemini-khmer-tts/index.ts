@@ -98,6 +98,22 @@ function convertToWav(rawData: string, mimeType: string): Uint8Array {
   return result;
 }
 
+// Helper function to convert Uint8Array to base64 in chunks to avoid call stack overflow
+function uint8ArrayToBase64(uint8Array: Uint8Array): string {
+  const chunkSize = 8192; // Process 8KB at a time
+  let result = '';
+  
+  console.log(`Converting ${uint8Array.length} bytes to base64 in chunks of ${chunkSize}`);
+  
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize);
+    const chunkString = String.fromCharCode.apply(null, Array.from(chunk));
+    result += chunkString;
+  }
+  
+  return btoa(result);
+}
+
 async function tryGeminiModel(modelName: string, request: KhmerTTSRequest, geminiApiKey: string): Promise<string> {
   console.log(`Trying Gemini model: ${modelName}`);
   
@@ -160,8 +176,9 @@ async function tryGeminiModel(modelName: string, request: KhmerTTSRequest, gemin
         if (audioData) {
           if (mimeType && mimeType.includes('audio/L16')) {
             // Convert L16 to WAV
+            console.log('Converting L16 PCM to WAV format...');
             const wavData = convertToWav(audioData, mimeType);
-            const base64Audio = btoa(String.fromCharCode(...wavData));
+            const base64Audio = uint8ArrayToBase64(wavData);
             console.log(`Successfully generated Khmer TTS audio using ${modelName} with Zephyr voice`);
             return base64Audio;
           } else {
@@ -190,10 +207,9 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
   console.log(`Khmer text: ${request.text}`);
   console.log(`Text length: ${request.text.length}`);
 
-  // Try models in order of preference
+  // Only use the TTS-specific model that supports audio generation
   const modelsToTry = [
-    'gemini-2.0-flash',           // Standard model that should support audio
-    'gemini-2.5-pro-preview-tts' // Dedicated TTS model
+    'gemini-2.5-pro-preview-tts' // Dedicated TTS model that supports Khmer
   ];
 
   let lastError: Error | null = null;
