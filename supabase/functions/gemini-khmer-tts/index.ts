@@ -98,23 +98,13 @@ function convertToWav(rawData: string, mimeType: string): Uint8Array {
   return result;
 }
 
-async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<string> {
-  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+async function tryGeminiModel(modelName: string, request: KhmerTTSRequest, geminiApiKey: string): Promise<string> {
+  console.log(`Trying Gemini model: ${modelName}`);
   
-  if (!geminiApiKey) {
-    throw new Error('GEMINI_API_KEY not found');
-  }
-
-  console.log(`Generating Gemini Khmer TTS for operator: ${request.operatorId}`);
-  console.log(`Khmer text: ${request.text}`);
-  console.log(`Text length: ${request.text.length}`);
-
-  // Use the correct Gemini API endpoint for content generation with audio response
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
   
   const requestBody = {
     generationConfig: {
-      temperature: 1,
       responseModalities: ['AUDIO'],
       speechConfig: {
         voiceConfig: {
@@ -136,7 +126,7 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
     ]
   };
 
-  console.log('Making request to Gemini API with model gemini-2.0-flash-exp...');
+  console.log(`Making request to Gemini API with model ${modelName}...`);
   console.log('Request body:', JSON.stringify(requestBody, null, 2));
   
   const response = await fetch(apiUrl, {
@@ -149,14 +139,14 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`Gemini API error: ${response.status} - ${errorText}`);
-    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+    console.error(`Gemini API error for ${modelName}: ${response.status} - ${errorText}`);
+    throw new Error(`Gemini API error for ${modelName}: ${response.status} - ${errorText}`);
   }
 
-  console.log('Processing Gemini response...');
+  console.log(`Processing ${modelName} response...`);
   
   const result = await response.json();
-  console.log('Gemini API response structure:', JSON.stringify(Object.keys(result), null, 2));
+  console.log(`${modelName} API response structure:`, JSON.stringify(Object.keys(result), null, 2));
   
   if (result.candidates?.[0]?.content?.parts) {
     for (const part of result.candidates[0].content.parts) {
@@ -172,11 +162,11 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
             // Convert L16 to WAV
             const wavData = convertToWav(audioData, mimeType);
             const base64Audio = btoa(String.fromCharCode(...wavData));
-            console.log(`Successfully generated Khmer TTS audio using Gemini with Zephyr voice`);
+            console.log(`Successfully generated Khmer TTS audio using ${modelName} with Zephyr voice`);
             return base64Audio;
           } else {
             // Direct audio data (MP3, etc.)
-            console.log(`Successfully generated Khmer TTS audio using Gemini with Zephyr voice`);
+            console.log(`Successfully generated Khmer TTS audio using ${modelName} with Zephyr voice`);
             return audioData;
           }
         }
@@ -185,8 +175,50 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
   }
 
   // If we get here, no audio was found in the response
-  console.log('Full Gemini response:', JSON.stringify(result, null, 2));
-  throw new Error('No audio content received from Gemini API');
+  console.log(`Full ${modelName} response:`, JSON.stringify(result, null, 2));
+  throw new Error(`No audio content received from ${modelName} API`);
+}
+
+async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<string> {
+  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+  
+  if (!geminiApiKey) {
+    throw new Error('GEMINI_API_KEY not found');
+  }
+
+  console.log(`Generating Gemini Khmer TTS for operator: ${request.operatorId}`);
+  console.log(`Khmer text: ${request.text}`);
+  console.log(`Text length: ${request.text.length}`);
+
+  // Try models in order of preference
+  const modelsToTry = [
+    'gemini-2.0-flash',           // Standard model that should support audio
+    'gemini-2.5-pro-preview-tts' // Dedicated TTS model
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const modelName of modelsToTry) {
+    try {
+      const audioContent = await tryGeminiModel(modelName, request, geminiApiKey);
+      return audioContent;
+    } catch (error) {
+      console.error(`Failed with model ${modelName}:`, error.message);
+      lastError = error;
+      
+      // If it's a modality error, try the next model
+      if (error.message.includes('does not support requested modality')) {
+        console.log(`Model ${modelName} doesn't support audio modality, trying next model...`);
+        continue;
+      }
+      
+      // For other errors, also try the next model but log the specific error
+      console.log(`Model ${modelName} failed with error: ${error.message}, trying next model...`);
+    }
+  }
+
+  // If all models failed, throw the last error
+  throw new Error(`All Gemini models failed. Last error: ${lastError?.message || 'Unknown error'}`);
 }
 
 serve(async (req) => {
