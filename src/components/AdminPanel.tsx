@@ -16,6 +16,7 @@ import FleetManagement from "./FleetManagement";
 import OperatorSettings from "./OperatorSettings";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
+import BulkUploadDepartures from "./BulkUploadDepartures";
 
 interface AdminPanelProps {
   branchId?: string;
@@ -32,6 +33,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   // State variables
   const [editMode, setEditMode] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
@@ -271,6 +273,47 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     });
   };
 
+  const handleBulkUpload = async (departures: any[]) => {
+    if (!branchId) {
+      toast({
+        title: "Error",
+        description: "Branch ID is required for bulk upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Process each departure
+      for (const departureData of departures) {
+        // Ensure all required fields are present and add branch_id
+        const processedDeparture = {
+          ...departureData,
+          branch_id: branchId,
+          is_visible: true,
+        };
+
+        await addDeparture(processedDeparture);
+      }
+
+      // Hide bulk upload form after successful upload
+      setShowBulkUpload(false);
+      
+      toast({
+        title: "Success",
+        description: `Successfully uploaded ${departures.length} departures`,
+      });
+    } catch (error) {
+      console.error('Error during bulk upload:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload some departures. Please check the logs.",
+        variant: "destructive",
+      });
+    }
+  };
+
+
   const handleUpdateStatus = async (id: string, status: Departure['status']) => {
     const estimatedTime = status === "delayed" ? 
       prompt("Enter estimated departure time (HH:MM):") : undefined;
@@ -469,10 +512,20 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         <TabsContent value="departures" className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Departure Management</h3>
-            {editMode && !showAddForm && (
-              <Button onClick={() => setShowAddForm(true)}>
-                Add New Departure
-              </Button>
+            {editMode && !showAddForm && !showBulkUpload && (
+              <div className="flex gap-2">
+                <Button onClick={() => setShowAddForm(true)}>
+                  Add New Departure
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowBulkUpload(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Bulk Upload
+                </Button>
+              </div>
             )}
           </div>
 
@@ -659,6 +712,27 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           </CardContent>
         </Card>
         )}
+
+          {/* Bulk Upload Departures */}
+          {editMode && showBulkUpload && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-md font-medium">Bulk Upload Departures</h4>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowBulkUpload(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <BulkUploadDepartures
+                onUpload={handleBulkUpload}
+                branchId={branchId}
+                operatorId={operatorId}
+              />
+            </div>
+          )}
 
         {/* Edit Departure Form */}
         {editMode && editingDeparture && (
