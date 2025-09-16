@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { useOperatorSettings, type OperatorSettings, type VoiceSettings } from "@/hooks/useOperatorSettings";
-import { Play, Trash2, Settings, Volume2, Mic, Brain, Languages } from "lucide-react";
+import { Play, Trash2, Settings, Volume2, Mic, Brain, Languages, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AnnouncementSystem from "./AnnouncementSystem";
 
@@ -23,6 +23,51 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
   const { settings, loading, updateSettings, clearCache } = useOperatorSettings(operatorId);
   const { toast } = useToast();
   const [testDeparture, setTestDeparture] = useState(false);
+  
+  // Local state for draft scripts (not auto-saved)
+  const [draftScripts, setDraftScripts] = useState({
+    english: "",
+    khmer: "",
+    chinese: ""
+  });
+
+  // Initialize draft scripts when settings load
+  useEffect(() => {
+    if (settings) {
+      setDraftScripts({
+        english: settings.announcement_scripts.english,
+        khmer: settings.announcement_scripts.khmer,
+        chinese: settings.announcement_scripts.chinese
+      });
+    }
+  }, [settings]);
+
+  const handleDraftScriptChange = (language: 'english' | 'khmer' | 'chinese', value: string) => {
+    setDraftScripts(prev => ({
+      ...prev,
+      [language]: value
+    }));
+  };
+
+  const handleSaveScript = (language: 'english' | 'khmer' | 'chinese') => {
+    if (!settings) return;
+    
+    const updatedScripts = {
+      ...settings.announcement_scripts,
+      [language]: draftScripts[language]
+    };
+    
+    updateSettings({ announcement_scripts: updatedScripts });
+    
+    toast({
+      title: "Script Saved",
+      description: `${language.charAt(0).toUpperCase() + language.slice(1)} script has been saved successfully.`,
+    });
+  };
+
+  const hasUnsavedChanges = (language: 'english' | 'khmer' | 'chinese') => {
+    return settings && draftScripts[language] !== settings.announcement_scripts[language];
+  };
 
   const handleRepeatCountChange = (count: number) => {
     if (count >= 1 && count <= 10) {
@@ -372,41 +417,80 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               </TabsList>
               
               <TabsContent value="english">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label htmlFor="script-english">English Script</Label>
                   <Textarea
                     id="script-english"
-                    value={settings.announcement_scripts.english}
-                    onChange={(e) => handleScriptUpdate('english', e.target.value)}
+                    value={draftScripts.english}
+                    onChange={(e) => handleDraftScriptChange('english', e.target.value)}
                     placeholder="Enter English announcement script..."
                     rows={5}
                   />
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${hasUnsavedChanges('english') ? 'text-orange-600' : 'text-green-600'}`}>
+                      {hasUnsavedChanges('english') ? 'Unsaved changes' : 'Saved'}
+                    </span>
+                    <Button
+                      onClick={() => handleSaveScript('english')}
+                      disabled={!hasUnsavedChanges('english')}
+                      size="sm"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Script
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
               
               <TabsContent value="khmer">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label htmlFor="script-khmer">Khmer Script</Label>
                   <Textarea
                     id="script-khmer"
-                    value={settings.announcement_scripts.khmer}
-                    onChange={(e) => handleScriptUpdate('khmer', e.target.value)}
+                    value={draftScripts.khmer}
+                    onChange={(e) => handleDraftScriptChange('khmer', e.target.value)}
                     placeholder="Enter Khmer announcement script..."
                     rows={5}
                   />
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${hasUnsavedChanges('khmer') ? 'text-orange-600' : 'text-green-600'}`}>
+                      {hasUnsavedChanges('khmer') ? 'Unsaved changes' : 'Saved'}
+                    </span>
+                    <Button
+                      onClick={() => handleSaveScript('khmer')}
+                      disabled={!hasUnsavedChanges('khmer')}
+                      size="sm"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Script
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
               
               <TabsContent value="chinese">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label htmlFor="script-chinese">Chinese Script</Label>
                   <Textarea
                     id="script-chinese"
-                    value={settings.announcement_scripts.chinese}
-                    onChange={(e) => handleScriptUpdate('chinese', e.target.value)}
+                    value={draftScripts.chinese}
+                    onChange={(e) => handleDraftScriptChange('chinese', e.target.value)}
                     placeholder="Enter Chinese announcement script..."
                     rows={5}
                   />
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${hasUnsavedChanges('chinese') ? 'text-orange-600' : 'text-green-600'}`}>
+                      {hasUnsavedChanges('chinese') ? 'Unsaved changes' : 'Saved'}
+                    </span>
+                    <Button
+                      onClick={() => handleSaveScript('chinese')}
+                      disabled={!hasUnsavedChanges('chinese')}
+                      size="sm"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Script
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
