@@ -59,3 +59,6 @@ ip_version = "ipv4"
 
 [functions.gemini-multispeaker-tts]
 verify_jwt = false
+
+[functions.gemini-khmer-tts]
+verify_jwt = false

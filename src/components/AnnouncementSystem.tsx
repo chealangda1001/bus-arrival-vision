@@ -68,48 +68,46 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  // Generate direct Khmer TTS using Google Cloud native support
+  // Generate Khmer TTS using Gemini 2.5 Pro with native Unicode support
   const generateDirectKhmerTTS = async (khmerText: string, forceRefresh = false) => {
     try {
-      const cacheKey = `khmer_direct_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}`;
+      const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}`;
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log("Using cached direct Khmer audio");
+          console.log("Using cached Gemini Khmer audio");
           return cachedAudio;
         }
       }
 
-      console.log("Generating direct Khmer TTS with native Google Cloud support...");
+      console.log("Generating Khmer TTS with Gemini 2.5 Pro TTS and Zephyr voice...");
       console.log("Full Khmer text:", khmerText);
       console.log("Khmer text length:", khmerText.length);
       
-      // Call the direct Khmer TTS function
-      const { data, error } = await supabase.functions.invoke('direct-khmer-tts', {
+      // Call the Gemini Khmer TTS function
+      const { data, error } = await supabase.functions.invoke('gemini-khmer-tts', {
         body: { 
           text: khmerText,
           operatorId,
-          speechRate: settings?.voice_settings?.khmer?.speed || 0.9,
-          pitch: settings?.voice_settings?.khmer?.pitch || 0,
-          voiceModel: 'Standard-A'
+          cacheKey
         }
       });
 
       if (error) {
-        console.error("Error generating direct Khmer TTS:", error);
+        console.error("Error generating Gemini Khmer TTS:", error);
         throw error;
       }
 
       if (data?.audioContent) {
         // Cache the generated audio (expires in 24 hours)
         await audioCache.set(cacheKey, data.audioContent, 24);
-        console.log(`Generated direct Khmer TTS using ${data.voice} (${data.method})`);
+        console.log(`Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
         return data.audioContent;
       }
 
-      throw new Error("No audio content received from direct Khmer TTS");
+      throw new Error("No audio content received from Gemini Khmer TTS");
     } catch (error) {
       console.error("Error in generateDirectKhmerTTS:", error);
       throw error;
