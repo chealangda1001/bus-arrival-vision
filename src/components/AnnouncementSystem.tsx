@@ -56,8 +56,10 @@ export default function AnnouncementSystem({
     announcementText = announcementText.replace(/{fleet_type}/g, departure.fleet_type || 'Bus');
     announcementText = announcementText.replace(/{destination}/g, departure.destination);
     announcementText = announcementText.replace(/{time}/g, departure.departure_time);
+    announcementText = announcementText.replace(/{departure_time}/g, departure.departure_time);
     announcementText = announcementText.replace(/{plate}/g, departure.plate_number || '');
     announcementText = announcementText.replace(/{fleet_plate_number}/g, departure.plate_number || '');
+    announcementText = announcementText.replace(/{leaving_from}/g, departure.leaving_from || 'Terminal');
     announcementText = announcementText.replace(/{trip_duration}/g, departure.trip_duration || 'N/A');
     announcementText = announcementText.replace(/{break_duration}/g, departure.break_duration || 'N/A');
     

@@ -417,8 +417,13 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               </TabsList>
               
               <TabsContent value="english">
-                <div className="space-y-3">
-                  <Label htmlFor="script-english">English Script</Label>
+                 <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="script-english">English Script</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {draftScripts.english.length} characters
+                    </span>
+                  </div>
                   <Textarea
                     id="script-english"
                     value={draftScripts.english}
@@ -444,7 +449,12 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               
               <TabsContent value="khmer">
                 <div className="space-y-3">
-                  <Label htmlFor="script-khmer">Khmer Script</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="script-khmer">Khmer Script</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {draftScripts.khmer.length} characters
+                    </span>
+                  </div>
                   <Textarea
                     id="script-khmer"
                     value={draftScripts.khmer}
@@ -470,7 +480,12 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               
               <TabsContent value="chinese">
                 <div className="space-y-3">
-                  <Label htmlFor="script-chinese">Chinese Script</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="script-chinese">Chinese Script</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {draftScripts.chinese.length} characters
+                    </span>
+                  </div>
                   <Textarea
                     id="script-chinese"
                     value={draftScripts.chinese}
@@ -501,7 +516,9 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
             <h4 className="font-semibold mb-2">Available Placeholders</h4>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">{"{destination}"}</Badge>
+              <Badge variant="secondary">{"{leaving_from}"}</Badge>
               <Badge variant="secondary">{"{fleet_type}"}</Badge>
+              <Badge variant="secondary">{"{departure_time}"}</Badge>
               <Badge variant="secondary">{"{fleet_plate_number}"}</Badge>
               <Badge variant="secondary">{"{trip_duration}"}</Badge>
               <Badge variant="secondary">{"{break_duration}"}</Badge>
@@ -510,6 +527,17 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
             <p className="text-sm text-muted-foreground mt-2">
               These will be automatically replaced with actual departure information
             </p>
+            
+            {/* Tips Section */}
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+              <h5 className="font-medium text-blue-900 dark:text-blue-100 mb-2">💡 Script Tips</h5>
+              <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                <li>• Use commas to add natural pauses in speech</li>
+                <li>• Keep scripts concise and straightforward to reduce AI generation time</li>
+                <li>• Test your scripts to ensure clarity and proper pronunciation</li>
+                <li>• Use consistent formatting across all language versions</li>
+              </ul>
+            </div>
           </div>
         </CardContent>
       </Card>
