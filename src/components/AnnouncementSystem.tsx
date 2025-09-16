@@ -126,17 +126,21 @@ export default function AnnouncementSystem({
       const scriptHash = generateScriptHash(script);
       const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
       
-      // Update cache status
-      setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
+      console.log('🎵 Khmer TTS - Cache Key:', cacheKey);
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
+        setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log("Using cached Gemini Khmer audio");
+          console.log("✅ Using cached Gemini Khmer audio");
           setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
           return cachedAudio;
         }
+        console.log("🔄 No cached Khmer audio found, generating new...");
+      } else {
+        console.log("🔄 Force refresh: Generating new Khmer TTS...");
+        setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
       }
 
       console.log("Generating Khmer TTS with Gemini 2.5 Pro TTS and Zephyr voice...");
@@ -161,7 +165,8 @@ export default function AnnouncementSystem({
         // Cache the generated audio (expires in 24 hours)
         await audioCache.set(cacheKey, data.audioContent, 24);
         setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-        console.log(`Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
+        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
+        console.log('💾 Cached new Khmer audio');
         return data.audioContent;
       }
 
@@ -179,17 +184,21 @@ export default function AnnouncementSystem({
       const scriptHash = generateScriptHash(script);
       const cacheKey = `${language}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
       
-      // Update cache status
-      setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
+      console.log(`🎵 ${language.toUpperCase()} TTS - Cache Key:`, cacheKey);
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
+        setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log(`Using cached direct ${language} audio`);
+          console.log(`✅ Using cached direct ${language} audio`);
           setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
           return cachedAudio;
         }
+        console.log(`🔄 No cached ${language} audio found, generating new...`);
+      } else {
+        console.log(`🔄 Force refresh: Generating new ${language} TTS...`);
+        setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
       }
 
       console.log(`Generating direct ${language} TTS...`);
@@ -215,6 +224,8 @@ export default function AnnouncementSystem({
 
       await audioCache.set(cacheKey, data.audioContent, 24);
       setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
+      console.log(`✅ Generated ${language} TTS successfully`);
+      console.log(`💾 Cached new ${language} audio`);
       return data.audioContent;
     } catch (error) {
       console.error(`Error in generateDirectTTS for ${language}:`, error);
@@ -295,27 +306,30 @@ export default function AnnouncementSystem({
       for (let repeat = 1; repeat <= repeatCount; repeat++) {
         setCurrentRepeat(repeat);
         
-        // Play Khmer first using native Google Cloud TTS
+        // Play Khmer first using native Google Cloud TTS (use cache if available)
         setCurrentLanguage('khmer');
-        const khmerAudio = await generateDirectKhmerTTS(khmerText, true);
+        console.log('🎯 Playing Khmer announcement...');
+        const khmerAudio = await generateDirectKhmerTTS(khmerText, false);
         await audioQueueRef.current.addToQueue(khmerAudio);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
         await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
         
-        // Play English second
+        // Play English second (use cache if available)
         setCurrentLanguage('english');
-        const englishAudio = await generateDirectTTS(englishText, 'english', true);
+        console.log('🎯 Playing English announcement...');
+        const englishAudio = await generateDirectTTS(englishText, 'english', false);
         await audioQueueRef.current.addToQueue(englishAudio);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
         await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
         
-        // Play Chinese third
+        // Play Chinese third (use cache if available)
         setCurrentLanguage('chinese');
-        const chineseAudio = await generateDirectTTS(chineseText, 'chinese', true);
+        console.log('🎯 Playing Chinese announcement...');
+        const chineseAudio = await generateDirectTTS(chineseText, 'chinese', false);
         await audioQueueRef.current.addToQueue(chineseAudio);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -347,6 +361,76 @@ export default function AnnouncementSystem({
     setIsPlaying(false);
     setIsGenerating(false);
     setCurrentRepeat(1);
+  };
+
+  const clearSpecificCache = async () => {
+    if (!departure || !operatorId) return;
+    
+    const scriptHash = generateScriptHash(script);
+    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
+    const englishText = generateAnnouncementText(script.english, departure, 'english');
+    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
+    
+    // Clear cache for all languages for this departure
+    const khmerKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
+    const englishKey = `english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`;
+    const chineseKey = `chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`;
+    
+    await Promise.all([
+      audioCache.delete(khmerKey),
+      audioCache.delete(englishKey),
+      audioCache.delete(chineseKey)
+    ]);
+    
+    console.log('🗑️ Cleared cache for current departure');
+    toast({
+      title: "Cache Cleared",
+      description: "Audio cache cleared for this departure.",
+    });
+    checkAllCacheStatus(); // Refresh cache status
+  };
+
+  const forceRegenerate = async () => {
+    if (!departure || !operatorId || isPlaying) return;
+    
+    console.log('🔄 Force regenerating all audio...');
+    await clearSpecificCache();
+    
+    // Play announcement with force refresh
+    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
+    const englishText = generateAnnouncementText(script.english, departure, 'english');
+    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
+    
+    try {
+      setIsPlaying(true);
+      setIsGenerating(true);
+
+      // Force regenerate all languages
+      console.log('🔄 Force regenerating Khmer...');
+      const khmerAudio = await generateDirectKhmerTTS(khmerText, true);
+      
+      console.log('🔄 Force regenerating English...');
+      const englishAudio = await generateDirectTTS(englishText, 'english', true);
+      
+      console.log('🔄 Force regenerating Chinese...');
+      const chineseAudio = await generateDirectTTS(chineseText, 'chinese', true);
+
+      console.log('✅ Force regeneration complete');
+      toast({
+        title: "Audio Regenerated",
+        description: "All audio files have been regenerated successfully.",
+      });
+    } catch (error) {
+      console.error('❌ Error during force regeneration:', error);
+      toast({
+        title: "Regeneration Failed",
+        description: "Failed to regenerate audio. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPlaying(false);
+      setIsGenerating(false);
+    }
   };
 
   // Check cache status when departure or settings change
@@ -400,6 +484,24 @@ export default function AnnouncementSystem({
               Stop
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSpecificCache}
+            disabled={isPlaying || isGenerating}
+            title="Clear cache for this departure"
+          >
+            🗑️ Clear Cache
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={forceRegenerate}
+            disabled={isPlaying || isGenerating || !settings?.voice_enabled}
+            title="Force regenerate all audio"
+          >
+            🔄 Regenerate
+          </Button>
           <Button
             variant="secondary"
             size="sm"
