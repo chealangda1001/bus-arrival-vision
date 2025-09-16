@@ -109,12 +109,13 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
   console.log(`Khmer text: ${request.text}`);
   console.log(`Text length: ${request.text.length}`);
 
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-tts:generateContentStream?key=${geminiApiKey}`;
+  // Use the correct Gemini API endpoint for content generation with audio response
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
   
   const requestBody = {
     generationConfig: {
       temperature: 1,
-      responseModalities: ['audio'],
+      responseModalities: ['AUDIO'],
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
@@ -135,7 +136,8 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
     ]
   };
 
-  console.log('Making request to Gemini TTS API...');
+  console.log('Making request to Gemini API with model gemini-2.0-flash-exp...');
+  console.log('Request body:', JSON.stringify(requestBody, null, 2));
   
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -151,65 +153,40 @@ async function generateKhmerTTSWithGemini(request: KhmerTTSRequest): Promise<str
     throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
   }
 
-  console.log('Processing Gemini streaming response...');
+  console.log('Processing Gemini response...');
   
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('No response body received from Gemini API');
-  }
-
-  const audioChunks: Uint8Array[] = [];
-  let totalAudioData = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) break;
-      
-      // Convert chunk to text and parse JSON lines
-      const chunk = new TextDecoder().decode(value);
-      const lines = chunk.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          
-          if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData) {
-            const inlineData = data.candidates[0].content.parts[0].inlineData;
-            const audioData = inlineData.data;
-            const mimeType = inlineData.mimeType;
-            
-            console.log(`Received audio chunk with mime type: ${mimeType}`);
-            
-            if (audioData) {
-              if (mimeType && mimeType.includes('audio/L16')) {
-                // Convert L16 to WAV
-                const wavData = convertToWav(audioData, mimeType);
-                totalAudioData += btoa(String.fromCharCode(...wavData));
-              } else {
-                // Direct audio data (MP3, etc.)
-                totalAudioData += audioData;
-              }
-            }
+  const result = await response.json();
+  console.log('Gemini API response structure:', JSON.stringify(Object.keys(result), null, 2));
+  
+  if (result.candidates?.[0]?.content?.parts) {
+    for (const part of result.candidates[0].content.parts) {
+      if (part.inlineData) {
+        const audioData = part.inlineData.data;
+        const mimeType = part.inlineData.mimeType;
+        
+        console.log(`Received audio data with mime type: ${mimeType}`);
+        console.log(`Audio data length: ${audioData?.length || 0}`);
+        
+        if (audioData) {
+          if (mimeType && mimeType.includes('audio/L16')) {
+            // Convert L16 to WAV
+            const wavData = convertToWav(audioData, mimeType);
+            const base64Audio = btoa(String.fromCharCode(...wavData));
+            console.log(`Successfully generated Khmer TTS audio using Gemini with Zephyr voice`);
+            return base64Audio;
+          } else {
+            // Direct audio data (MP3, etc.)
+            console.log(`Successfully generated Khmer TTS audio using Gemini with Zephyr voice`);
+            return audioData;
           }
-        } catch (parseError) {
-          console.log('Skipping non-JSON line:', line);
         }
       }
     }
-  } finally {
-    reader.releaseLock();
   }
 
-  if (!totalAudioData) {
-    throw new Error('No audio content received from Gemini TTS');
-  }
-
-  console.log(`Successfully generated Khmer TTS audio using Gemini 2.5 Pro with Zephyr voice`);
-  console.log(`Total audio data length: ${totalAudioData.length}`);
-  
-  return totalAudioData;
+  // If we get here, no audio was found in the response
+  console.log('Full Gemini response:', JSON.stringify(result, null, 2));
+  throw new Error('No audio content received from Gemini API');
 }
 
 serve(async (req) => {
