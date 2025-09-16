@@ -109,6 +109,7 @@ export type Database = {
           id: string
           is_visible: boolean | null
           khmer_audio_url: string | null
+          leaving_from: string | null
           plate_number: string
           status: string
           trip_duration: string | null
@@ -129,6 +130,7 @@ export type Database = {
           id?: string
           is_visible?: boolean | null
           khmer_audio_url?: string | null
+          leaving_from?: string | null
           plate_number: string
           status: string
           trip_duration?: string | null
@@ -149,6 +151,7 @@ export type Database = {
           id?: string
           is_visible?: boolean | null
           khmer_audio_url?: string | null
+          leaving_from?: string | null
           plate_number?: string
           status?: string
           trip_duration?: string | null

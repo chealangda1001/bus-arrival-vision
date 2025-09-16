@@ -6,6 +6,7 @@ export interface Departure {
   id: string;
   branch_id: string;
   destination: string;
+  leaving_from?: string;
   plate_number: string;
   departure_time: string;
   status: "on-time" | "delayed" | "boarding" | "departed";

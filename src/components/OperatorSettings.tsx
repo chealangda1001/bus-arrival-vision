@@ -400,7 +400,7 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               Announcement Scripts
             </h3>
             <p className="text-sm text-muted-foreground">
-              Customize announcement templates. Available placeholders: {"{destination}"}, {"{fleet_type}"}, {"{fleet_plate_number}"}, {"{trip_duration}"}, {"{break_duration}"}, {"{operator_name}"}
+              Customize announcement templates. Available placeholders: {"{leaving_from}"}, {"{destination}"}, {"{departure_time}"}, {"{fleet_type}"}, {"{fleet_plate_number}"}, {"{trip_duration}"}, {"{break_duration}"}, {"{operator_name}"}
             </p>
             
             <Tabs defaultValue="english">

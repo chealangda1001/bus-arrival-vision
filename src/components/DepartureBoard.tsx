@@ -171,9 +171,15 @@ const DepartureBoard = ({ currentTime, branchId, onAnnouncement }: DepartureBoar
                     </div>
                   </div>
 
-                  {/* Destination */}
+                  {/* Route Information */}
                   <div className="col-span-3">
                     <div className="space-y-2">
+                      {departure.leaving_from && (
+                        <div>
+                          <span className="text-sm text-text-display/60 font-medium">{t('leaving_from')}</span>
+                          <div className="text-lg font-semibold text-text-display">{departure.leaving_from}</div>
+                        </div>
+                      )}
                       <div>
                         <span className="text-sm text-text-display/60 font-medium">{t('destination')}</span>
                         <h3 className="text-xl font-bold text-text-display">{getTranslatedDestination(departure.destination)}</h3>

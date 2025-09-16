@@ -38,6 +38,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
   const [newDeparture, setNewDeparture] = useState({
     destination: "",
+    leaving_from: "",
     departure_time: "",
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
     estimated_time: "",
@@ -51,6 +52,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   });
   const [editDeparture, setEditDeparture] = useState({
     destination: "",
+    leaving_from: "",
     departure_time: "",
     status: "on-time" as "on-time" | "delayed" | "boarding" | "departed",
     estimated_time: "",
@@ -129,6 +131,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     const departureData = {
       branch_id: branchId,
       destination: newDeparture.destination,
+      leaving_from: newDeparture.leaving_from || undefined,
       departure_time: newDeparture.departure_time,
       status: newDeparture.status,
       estimated_time: newDeparture.estimated_time || undefined,
@@ -147,6 +150,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     // Reset form and hide it
     setNewDeparture({
       destination: "",
+      leaving_from: "",
       departure_time: "",
       status: "on-time",
       estimated_time: "",
@@ -164,6 +168,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     setEditingDeparture(departure.id);
     setEditDeparture({
       destination: departure.destination,
+      leaving_from: departure.leaving_from || "",
       departure_time: departure.departure_time,
       status: departure.status,
       estimated_time: departure.estimated_time || "",
@@ -198,6 +203,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         .from('departures')
         .update({
           destination: editDeparture.destination,
+          leaving_from: editDeparture.leaving_from || null,
           departure_time: editDeparture.departure_time,
           status: editDeparture.status,
           estimated_time: editDeparture.estimated_time || null,
@@ -223,6 +229,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       setEditingDeparture(null);
       setEditDeparture({
         destination: "",
+        leaving_from: "",
         departure_time: "",
         status: "on-time",
         estimated_time: "",
@@ -250,6 +257,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     setEditingDeparture(null);
     setEditDeparture({
       destination: "",
+      leaving_from: "",
       departure_time: "",
       status: "on-time",
       estimated_time: "",
@@ -506,6 +514,16 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="leaving-from">Leaving From</Label>
+                <Input
+                  id="leaving-from"
+                  value={newDeparture.leaving_from}
+                  onChange={(e) => setNewDeparture(prev => ({...prev, leaving_from: e.target.value}))}
+                  placeholder="e.g., Phnom Penh Central Station"
+                />
+              </div>
 
               {/* Manual entry fields - only show when no fleet selected or manual selected */}
               {(!newDeparture.fleet_id || newDeparture.fleet_id === "manual") && (
@@ -679,6 +697,16 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-leaving-from">Leaving From</Label>
+                  <Input
+                    id="edit-leaving-from"
+                    value={editDeparture.leaving_from}
+                    onChange={(e) => setEditDeparture(prev => ({...prev, leaving_from: e.target.value}))}
+                    placeholder="e.g., Phnom Penh Central Station"
+                  />
                 </div>
 
                 {/* Manual entry fields - only show when no fleet selected or manual selected */}
@@ -867,9 +895,15 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                         </div>
                       </div>
 
-                      {/* Destination */}
-                      <div className="col-span-2">
+                      {/* Departure Information */}
+                      <div className="col-span-3">
                         <div className="space-y-2">
+                          {departure.leaving_from && (
+                            <div>
+                              <span className="text-sm text-text-display/60 font-medium">Leaving From:</span>
+                              <div className="text-lg font-semibold text-text-display">{departure.leaving_from}</div>
+                            </div>
+                          )}
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Destination:</span>
                             <h3 className="text-xl font-bold text-text-display">{departure.destination}</h3>
