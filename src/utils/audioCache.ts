@@ -203,11 +203,11 @@ export class AudioQueue {
   }
 }
 
-// Generate cache key for announcement
-export const generateCacheKey = (text: string, language: string, operatorId: string): string => {
+// Generate cache key for announcement including script content hash
+export const generateCacheKey = (text: string, language: string, operatorId: string, scriptHash?: string): string => {
   try {
-    // Use a simple hash approach to avoid encoding issues with non-Latin characters
-    const input = `${operatorId}_${text}_${language}_nova`;
+    // Include script hash in cache key for better invalidation
+    const input = `${operatorId}_${text}_${language}_${scriptHash || 'default'}_nova`;
     let hash = 0;
     for (let i = 0; i < input.length; i++) {
       const char = input.charCodeAt(i);
@@ -219,6 +219,33 @@ export const generateCacheKey = (text: string, language: string, operatorId: str
     // Fallback to a time-based key
     const fallbackKey = `${operatorId}_${language}_${text.length}_${Date.now()}`;
     return btoa(fallbackKey);
+  }
+};
+
+// Check if audio is cached
+export const checkCacheStatus = async (cacheKey: string): Promise<'cached' | 'expired' | 'missing'> => {
+  try {
+    const cachedAudio = await audioCache.get(cacheKey);
+    return cachedAudio ? 'cached' : 'missing';
+  } catch (error) {
+    console.error('Error checking cache status:', error);
+    return 'missing';
+  }
+};
+
+// Generate script content hash for cache invalidation
+export const generateScriptHash = (scripts: { khmer: string; english: string; chinese: string }): string => {
+  try {
+    const scriptContent = `${scripts.khmer}_${scripts.english}_${scripts.chinese}`;
+    let hash = 0;
+    for (let i = 0; i < scriptContent.length; i++) {
+      const char = scriptContent.charCodeAt(i);
+      hash = ((hash << 5) - hash + char) & 0xffffffff;
+    }
+    return Math.abs(hash).toString();
+  } catch (error) {
+    console.error('Error generating script hash:', error);
+    return 'default';
   }
 };
 

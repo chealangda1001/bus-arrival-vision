@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Volume2, VolumeX, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Volume2, VolumeX, Loader2, CheckCircle, Clock, XCircle } from "lucide-react";
 import { type Departure } from "@/hooks/useDepartures";
 import { supabase } from "@/integrations/supabase/client";
 import { useOperatorSettings } from "@/hooks/useOperatorSettings";
-import { audioCache, AudioQueue } from "@/utils/audioCache";
+import { audioCache, AudioQueue, checkCacheStatus, generateScriptHash } from "@/utils/audioCache";
 import { useToast } from "@/components/ui/use-toast";
 import { 
   formatAnnouncementScript, 
   generateMultiSpeakerCacheKey,
   DEFAULT_STYLE_INSTRUCTIONS 
 } from "@/utils/scriptParser";
+import { formatTimeWithKhmerPeriods, formatTimeEnglish, formatTimeChinese } from "@/utils/timeFormatter";
 
 interface AnnouncementSystemProps {
   departure?: Departure;
@@ -36,6 +38,11 @@ export default function AnnouncementSystem({
   const [currentLanguage, setCurrentLanguage] = useState<'multi' | 'english' | 'khmer' | 'chinese'>('multi');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentRepeat, setCurrentRepeat] = useState(1);
+  const [cacheStatus, setCacheStatus] = useState<{
+    khmer: 'cached' | 'expired' | 'missing' | 'generating';
+    english: 'cached' | 'expired' | 'missing' | 'generating';
+    chinese: 'cached' | 'expired' | 'missing' | 'generating';
+  }>({ khmer: 'missing', english: 'missing', chinese: 'missing' });
   const audioQueueRef = useRef<AudioQueue>(new AudioQueue());
   const { toast } = useToast();
   
@@ -47,16 +54,31 @@ export default function AnnouncementSystem({
     chinese: "乘客请注意，{fleet_type}开往{destination}的班车将于{time}发车。车牌号{plate}。请前往候车区域。"
   };
 
-  const generateAnnouncementText = (template: string, departure: Departure) => {
+  const generateAnnouncementText = (template: string, departure: Departure, language: 'english' | 'khmer' | 'chinese') => {
     let announcementText = template;
     
-    console.log(`Generating announcement text from template: "${template}"`);
+    console.log(`Generating ${language} announcement text from template: "${template}"`);
+    
+    // Format time based on language
+    let formattedTime = departure.departure_time;
+    let formattedDepartureTime = departure.departure_time;
+    
+    if (language === 'khmer') {
+      formattedTime = formatTimeWithKhmerPeriods(departure.departure_time);
+      formattedDepartureTime = formatTimeWithKhmerPeriods(departure.departure_time);
+    } else if (language === 'english') {
+      formattedTime = formatTimeEnglish(departure.departure_time);
+      formattedDepartureTime = formatTimeEnglish(departure.departure_time);
+    } else if (language === 'chinese') {
+      formattedTime = formatTimeChinese(departure.departure_time);
+      formattedDepartureTime = formatTimeChinese(departure.departure_time);
+    }
     
     // Replace all departure-related parameters
     announcementText = announcementText.replace(/{fleet_type}/g, departure.fleet_type || 'Bus');
     announcementText = announcementText.replace(/{destination}/g, departure.destination);
-    announcementText = announcementText.replace(/{time}/g, departure.departure_time);
-    announcementText = announcementText.replace(/{departure_time}/g, departure.departure_time);
+    announcementText = announcementText.replace(/{time}/g, formattedTime);
+    announcementText = announcementText.replace(/{departure_time}/g, formattedDepartureTime);
     announcementText = announcementText.replace(/{plate}/g, departure.plate_number || '');
     announcementText = announcementText.replace(/{fleet_plate_number}/g, departure.plate_number || '');
     announcementText = announcementText.replace(/{leaving_from}/g, departure.leaving_from || 'Terminal');
@@ -66,20 +88,53 @@ export default function AnnouncementSystem({
     // Replace operator name from settings
     announcementText = announcementText.replace(/{operator_name}/g, settings?.operator_name || 'BookMeBus');
     
-    console.log(`Generated announcement text: "${announcementText}"`);
+    console.log(`Generated ${language} announcement text: "${announcementText}"`);
     return announcementText;
+  };
+
+  // Check cache status for all languages
+  const checkAllCacheStatus = async () => {
+    if (!departure || !operatorId) return;
+
+    const scriptHash = generateScriptHash(script);
+    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
+    const englishText = generateAnnouncementText(script.english, departure, 'english');
+    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
+
+    const khmerCacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
+    const englishCacheKey = `english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`;
+    const chineseCacheKey = `chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`;
+
+    const [khmerStatus, englishStatus, chineseStatus] = await Promise.all([
+      checkCacheStatus(khmerCacheKey),
+      checkCacheStatus(englishCacheKey),
+      checkCacheStatus(chineseCacheKey)
+    ]);
+
+    setCacheStatus({
+      khmer: khmerStatus,
+      english: englishStatus,
+      chinese: chineseStatus
+    });
+
+    console.log('Cache status check:', { khmerStatus, englishStatus, chineseStatus });
   };
 
   // Generate Khmer TTS using Gemini 2.5 Pro with native Unicode support
   const generateDirectKhmerTTS = async (khmerText: string, forceRefresh = false) => {
     try {
-      const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}`;
+      const scriptHash = generateScriptHash(script);
+      const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
+      
+      // Update cache status
+      setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
           console.log("Using cached Gemini Khmer audio");
+          setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
           return cachedAudio;
         }
       }
@@ -105,6 +160,7 @@ export default function AnnouncementSystem({
       if (data?.audioContent) {
         // Cache the generated audio (expires in 24 hours)
         await audioCache.set(cacheKey, data.audioContent, 24);
+        setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
         console.log(`Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
         return data.audioContent;
       }
@@ -112,6 +168,7 @@ export default function AnnouncementSystem({
       throw new Error("No audio content received from Gemini Khmer TTS");
     } catch (error) {
       console.error("Error in generateDirectKhmerTTS:", error);
+      setCacheStatus(prev => ({ ...prev, khmer: 'missing' }));
       throw error;
     }
   };
@@ -119,15 +176,18 @@ export default function AnnouncementSystem({
   // Generate direct TTS for other languages
   const generateDirectTTS = async (text: string, language: 'english' | 'chinese', forceRefresh = false) => {
     try {
-      const langCode = language === 'english' ? 'en-US' : 'cmn-CN';
-      const voice = language === 'english' ? 'en-US-Neural2-F' : 'cmn-CN-Standard-A';
-      const cacheKey = `${language}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}`;
+      const scriptHash = generateScriptHash(script);
+      const cacheKey = `${language}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
+      
+      // Update cache status
+      setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
           console.log(`Using cached direct ${language} audio`);
+          setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
           return cachedAudio;
         }
       }
@@ -154,9 +214,11 @@ export default function AnnouncementSystem({
       if (!data?.audioContent) throw new Error(`No audio content received for ${language}`);
 
       await audioCache.set(cacheKey, data.audioContent, 24);
+      setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
       return data.audioContent;
     } catch (error) {
       console.error(`Error in generateDirectTTS for ${language}:`, error);
+      setCacheStatus(prev => ({ ...prev, [language]: 'missing' }));
       throw error;
     }
   };
@@ -169,9 +231,9 @@ export default function AnnouncementSystem({
       setIsGenerating(true);
       
       const repeatCount = settings.announcement_repeat_count || 3;
-      const khmerText = generateAnnouncementText(script.khmer, departure);
-      const englishText = generateAnnouncementText(script.english, departure);
-      const chineseText = generateAnnouncementText(script.chinese, departure);
+      const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
+      const englishText = generateAnnouncementText(script.english, departure, 'english');
+      const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
       
       console.log("Generated texts:", { khmerText, englishText, chineseText });
 
@@ -287,6 +349,13 @@ export default function AnnouncementSystem({
     setCurrentRepeat(1);
   };
 
+  // Check cache status when departure or settings change
+  useEffect(() => {
+    if (departure && operatorId && script) {
+      checkAllCacheStatus();
+    }
+  }, [departure, operatorId, script]);
+
   useEffect(() => {
     if (departure && !isPlaying && settings?.auto_announcement_enabled && !manualTrigger) {
       // Disable auto-play when status is boarding - only auto-play for other statuses
@@ -343,21 +412,45 @@ export default function AnnouncementSystem({
       </div>
       
       <div className="space-y-3">
-        {/* Audio Source Indicators */}
+        {/* Audio Source Indicators with Cache Status */}
         <div className="flex justify-center gap-3 mb-4">
           {(['khmer', 'english', 'chinese'] as const).map((lang) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
+            const langCacheStatus = cacheStatus[lang];
+            
+            const getCacheIcon = () => {
+              if (hasCustomAudio) return null; // No cache for uploaded files
+              switch (langCacheStatus) {
+                case 'cached': return <CheckCircle className="w-3 h-3 text-green-600" />;
+                case 'generating': return <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />;
+                case 'missing': 
+                case 'expired': 
+                default: return <XCircle className="w-3 h-3 text-gray-400" />;
+              }
+            };
+
+            const getCacheColor = () => {
+              if (hasCustomAudio) return 'bg-green-100 text-green-800';
+              switch (langCacheStatus) {
+                case 'cached': return 'bg-purple-100 text-purple-800';
+                case 'generating': return 'bg-blue-100 text-blue-800';
+                default: return 'bg-gray-100 text-gray-600';
+              }
+            };
+
             return (
               <div key={lang} className="text-center">
-                <div className={`px-2 py-1 rounded text-xs ${
-                  hasCustomAudio ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
-                }`}>
+                <div className={`px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${getCacheColor()}`}>
+                  {getCacheIcon()}
                   {lang === 'khmer' ? 'KHMER (1st)' :
                    lang === 'english' ? 'ENGLISH (2nd)' : 'CHINESE (3rd)'}
                 </div>
                 <div className="text-xs text-text-display/60 mt-1">
-                  {hasCustomAudio ? 'Custom MP3' : 'AI TTS'}
+                  {hasCustomAudio ? 'Custom MP3' : 
+                   langCacheStatus === 'cached' ? '✅ Cached' :
+                   langCacheStatus === 'generating' ? '🔄 Generating' :
+                   '❌ Not Cached'}
                 </div>
               </div>
             );
@@ -390,22 +483,22 @@ export default function AnnouncementSystem({
               <div className="space-y-2">
                 <div className="text-text-display">
                   <span className="text-xs text-primary font-medium">[Zephyr - Khmer]</span><br />
-                  {generateAnnouncementText(script.khmer, departure)}
+                  {generateAnnouncementText(script.khmer, departure, 'khmer')}
                 </div>
                 <div className="text-text-display">
                   <span className="text-xs text-primary font-medium">[Kore - English]</span><br />
-                  {generateAnnouncementText(script.english, departure)}
+                  {generateAnnouncementText(script.english, departure, 'english')}
                 </div>
                 <div className="text-text-display">
                   <span className="text-xs text-primary font-medium">[Luna - Chinese]</span><br />
-                  {generateAnnouncementText(script.chinese, departure)}
+                  {generateAnnouncementText(script.chinese, departure, 'chinese')}
                 </div>
               </div>
             ) : (
               <p className="text-text-display">
-                {currentLanguage === 'khmer' && generateAnnouncementText(script.khmer, departure)}
-                {currentLanguage === 'english' && generateAnnouncementText(script.english, departure)}
-                {currentLanguage === 'chinese' && generateAnnouncementText(script.chinese, departure)}
+                {currentLanguage === 'khmer' && generateAnnouncementText(script.khmer, departure, 'khmer')}
+                {currentLanguage === 'english' && generateAnnouncementText(script.english, departure, 'english')}
+                {currentLanguage === 'chinese' && generateAnnouncementText(script.chinese, departure, 'chinese')}
               </p>
             )}
           </div>
