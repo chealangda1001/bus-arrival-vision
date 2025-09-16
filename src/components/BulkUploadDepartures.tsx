@@ -22,6 +22,7 @@ interface DepartureRow {
   departure_time: string;
   fleet_type: 'VIP Van' | 'Bus' | 'Sleeping Bus';
   plate_number?: string;
+  leaving_from?: string;
   status?: string;
   estimated_time?: string;
   trip_duration?: string;
@@ -57,36 +58,40 @@ const BulkUploadDepartures: React.FC<BulkUploadDeparturesProps> = ({
   const statusTypes = ['on-time', 'delayed', 'boarding', 'departed'] as const;
 
   const generateTemplate = useCallback(() => {
+    // Generate template data with proper headers
     const templateData = [
-      {
-        destination: 'Phnom Penh',
-        departure_time: '08:00',
-        fleet_type: 'VIP Van',
-        plate_number: 'PP-1234',
-        status: 'on-time',
-        estimated_time: '',
-        trip_duration: '3.5',
-        break_duration: '15'
+      { 
+        destination: 'Phnom Penh', 
+        departure_time: '8:00 AM', 
+        fleet_type: 'VIP Van', 
+        plate_number: 'PP-1234', 
+        leaving_from: 'Terminal A',
+        status: 'on-time', 
+        estimated_time: '', 
+        trip_duration: '3.5', 
+        break_duration: '15' 
       },
-      {
-        destination: 'Siem Reap',
-        departure_time: '14:30',
-        fleet_type: 'Bus',
-        plate_number: 'SR-5678',
-        status: 'on-time',
-        estimated_time: '',
-        trip_duration: '5.0',
-        break_duration: '20'
+      { 
+        destination: 'Siem Reap', 
+        departure_time: '2:30 PM', 
+        fleet_type: 'Bus', 
+        plate_number: 'SR-5678', 
+        leaving_from: 'Gate 3',
+        status: 'on-time', 
+        estimated_time: '', 
+        trip_duration: '5.0', 
+        break_duration: '20' 
       },
-      {
-        destination: 'Battambang',
-        departure_time: '10:15',
-        fleet_type: 'Sleeping Bus',
-        plate_number: 'BT-9012',
-        status: 'delayed',
-        estimated_time: '10:45',
-        trip_duration: '4.0',
-        break_duration: '10'
+      { 
+        destination: 'Battambang', 
+        departure_time: '10:15 AM', 
+        fleet_type: 'Sleeping Bus', 
+        plate_number: 'BT-9012', 
+        leaving_from: 'Platform B',
+        status: 'delayed', 
+        estimated_time: '10:45 AM', 
+        trip_duration: '4.0', 
+        break_duration: '10' 
       }
     ];
 
@@ -96,8 +101,9 @@ const BulkUploadDepartures: React.FC<BulkUploadDeparturesProps> = ({
     const colWidths = [
       { wch: 15 }, // destination
       { wch: 12 }, // departure_time
-      { wch: 12 }, // fleet_type
+      { wch: 15 }, // fleet_type
       { wch: 12 }, // plate_number
+      { wch: 15 }, // leaving_from
       { wch: 10 }, // status
       { wch: 12 }, // estimated_time
       { wch: 12 }, // trip_duration
@@ -108,11 +114,12 @@ const BulkUploadDepartures: React.FC<BulkUploadDeparturesProps> = ({
     // Add notes sheet
     const notesData = [
       { Field: 'destination', Required: 'YES', Format: 'Text', Example: 'Phnom Penh', Notes: 'Final destination city' },
-      { Field: 'departure_time', Required: 'YES', Format: 'HH:MM', Example: '08:00', Notes: '24-hour format' },
+      { Field: 'departure_time', Required: 'YES', Format: 'H:MM AM/PM', Example: '8:00 AM', Notes: '12-hour format with AM/PM' },
       { Field: 'fleet_type', Required: 'YES', Format: 'Text', Example: 'VIP Van', Notes: 'Must be: VIP Van, Bus, or Sleeping Bus' },
       { Field: 'plate_number', Required: 'NO', Format: 'Text', Example: 'PP-1234', Notes: 'Vehicle plate number' },
+      { Field: 'leaving_from', Required: 'NO', Format: 'Text', Example: 'Terminal A', Notes: 'Departure location or platform' },
       { Field: 'status', Required: 'NO', Format: 'Text', Example: 'on-time', Notes: 'Must be: on-time, delayed, boarding, or departed. Defaults to on-time' },
-      { Field: 'estimated_time', Required: 'NO', Format: 'HH:MM', Example: '08:15', Notes: 'Only for delayed departures' },
+      { Field: 'estimated_time', Required: 'NO', Format: 'H:MM AM/PM', Example: '8:15 AM', Notes: 'Only for delayed departures, 12-hour format' },
       { Field: 'trip_duration', Required: 'NO', Format: 'Number', Example: '3.5', Notes: 'Trip duration in hours' },
       { Field: 'break_duration', Required: 'NO', Format: 'Number', Example: '15', Notes: 'Break duration in minutes' }
     ];
@@ -128,10 +135,10 @@ const BulkUploadDepartures: React.FC<BulkUploadDeparturesProps> = ({
   }, []);
 
   const generateCSVTemplate = useCallback(() => {
-    const csvContent = `destination,departure_time,fleet_type,plate_number,status,estimated_time,trip_duration,break_duration
-Phnom Penh,08:00,VIP Van,PP-1234,on-time,,3.5,15
-Siem Reap,14:30,Bus,SR-5678,on-time,,5.0,20
-Battambang,10:15,Sleeping Bus,BT-9012,delayed,10:45,4.0,10`;
+    const csvContent = `destination,departure_time,fleet_type,plate_number,leaving_from,status,estimated_time,trip_duration,break_duration
+Phnom Penh,8:00 AM,VIP Van,PP-1234,Terminal A,on-time,,3.5,15
+Siem Reap,2:30 PM,Bus,SR-5678,Gate 3,on-time,,5.0,20
+Battambang,10:15 AM,Sleeping Bus,BT-9012,Platform B,delayed,10:45 AM,4.0,10`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -146,8 +153,10 @@ Battambang,10:15,Sleeping Bus,BT-9012,delayed,10:45,4.0,10`;
 
   const validateTime = (timeStr: string): boolean => {
     if (!timeStr) return false;
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return timeRegex.test(timeStr);
+    // Support both 12-hour (8:00 AM) and 24-hour (08:00) formats
+    const time12Regex = /^(1[0-2]|[1-9]):[0-5][0-9]\s?(AM|PM)$/i;
+    const time24Regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    return time12Regex.test(timeStr) || time24Regex.test(timeStr);
   };
 
   const validateRow = (row: any, rowIndex: number): ValidationError[] => {
@@ -174,7 +183,7 @@ Battambang,10:15,Sleeping Bus,BT-9012,delayed,10:45,4.0,10`;
       errors.push({
         row: rowIndex + 1,
         field: 'departure_time',
-        message: 'Invalid time format. Use HH:MM (24-hour format)',
+        message: 'Invalid time format. Use H:MM AM/PM (12-hour) or HH:MM (24-hour)',
         value: row.departure_time
       });
     }
@@ -196,6 +205,15 @@ Battambang,10:15,Sleeping Bus,BT-9012,delayed,10:45,4.0,10`;
     }
 
     // Optional field validation
+    if (row.estimated_time && !validateTime(row.estimated_time)) {
+      errors.push({
+        row: rowIndex + 1,
+        field: 'estimated_time',
+        message: 'Invalid time format. Use H:MM AM/PM (12-hour) or HH:MM (24-hour)',
+        value: row.estimated_time
+      });
+    }
+
     if (row.status && !statusTypes.includes(row.status)) {
       errors.push({
         row: rowIndex + 1,

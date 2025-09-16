@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
   const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
+  const [selectedDepartures, setSelectedDepartures] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   const [newDeparture, setNewDeparture] = useState({
     destination: "",
     leaving_from: "",
@@ -475,9 +478,100 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     }
   };
 
+  const handleBulkUpload = async (departures: any[]) => {
+    try {
+      for (const departure of departures) {
+        await addDeparture(departure);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Successfully uploaded ${departures.length} departures`,
+      });
+      
+      setShowBulkUpload(false);
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload departures",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Selection handlers
+  const handleSelectDeparture = (departureId: string, checked: boolean) => {
+    const newSelected = new Set(selectedDepartures);
+    if (checked) {
+      newSelected.add(departureId);
+    } else {
+      newSelected.delete(departureId);
+    }
+    setSelectedDepartures(newSelected);
+    setSelectAll(newSelected.size === departures.length);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedDepartures(new Set(departures.map(d => d.id)));
+    } else {
+      setSelectedDepartures(new Set());
+    }
+    setSelectAll(checked);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedDepartures.size === 0) return;
+    
+    try {
+      for (const departureId of selectedDepartures) {
+        await deleteDeparture(departureId);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${selectedDepartures.size} departures`,
+      });
+      
+      setSelectedDepartures(new Set());
+      setSelectAll(false);
+    } catch (error) {
+      console.error('Delete selected error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete selected departures",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (departures.length === 0) return;
+    
+    try {
+      for (const departure of departures) {
+        await deleteDeparture(departure.id);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Successfully deleted all ${departures.length} departures`,
+      });
+      
+      setSelectedDepartures(new Set());
+      setSelectAll(false);
+    } catch (error) {
+      console.error('Delete all error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete all departures",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
-    return <div className="flex justify-center p-8">Loading...</div>;
-  }
 
   return (
     <div className="space-y-6">
@@ -922,6 +1016,39 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-text-display">Current Departures ({departures.length})</h2>
+            {editMode && departures.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={handleSelectAll}
+                    id="select-all"
+                  />
+                  <label htmlFor="select-all" className="text-sm text-text-display/60">
+                    Select All
+                  </label>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  disabled={selectedDepartures.size === 0}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected ({selectedDepartures.size})
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteAll}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete All
+                </Button>
+              </div>
+            )}
           </div>
           
           {/* Departures Grid */}
@@ -941,8 +1068,18 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                 >
                   <CardContent className="p-6">
                     <div className="grid grid-cols-12 gap-4 items-center">
+                      {/* Checkbox for selection */}
+                      {editMode && (
+                        <div className="col-span-1 flex justify-center">
+                          <Checkbox
+                            checked={selectedDepartures.has(departure.id)}
+                            onCheckedChange={(checked) => handleSelectDeparture(departure.id, !!checked)}
+                          />
+                        </div>
+                      )}
+                      
                       {/* Fleet Picture */}
-                      <div className="col-span-2">
+                      <div className={editMode ? "col-span-2" : "col-span-2"}>
                         <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                           {departure.fleet_image_url && departure.fleet_image_url.trim() !== '' ? (
                             <img 
@@ -971,7 +1108,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Destination */}
-                      <div className="col-span-3">
+                      <div className={editMode ? "col-span-2" : "col-span-3"}>
                         <div className="space-y-2">
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Destination:</span>
@@ -981,7 +1118,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Fleet Type */}
-                      <div className="col-span-2">
+                      <div className={editMode ? "col-span-2" : "col-span-2"}>
                         <div className="space-y-2">
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Fleet Type:</span>
@@ -996,7 +1133,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Plate Number */}
-                      <div className="col-span-2">
+                      <div className={editMode ? "col-span-2" : "col-span-2"}>
                         {departure.plate_number && (
                           <div className="space-y-2">
                             <div>
@@ -1008,7 +1145,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Departure Time */}
-                      <div className="col-span-2">
+                      <div className={editMode ? "col-span-2" : "col-span-2"}>
                         <div className="space-y-2">
                           <div>
                             <span className="text-sm text-text-display/60 font-medium">Departure Time:</span>
@@ -1024,7 +1161,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
 
                       {/* Actions Menu */}
-                      <div className="col-span-1 flex justify-end">
+                      <div className={editMode ? "col-span-1 flex justify-end" : "col-span-3 flex justify-end"}>
                         {editMode && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -1287,7 +1424,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
             )}
           </div>
         </div>
-        </TabsContent>
+      </TabsContent>
         
         <TabsContent value="fleets">
           <FleetManagement operatorId={operatorId} />
