@@ -478,28 +478,6 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     }
   };
 
-  const handleBulkUpload = async (departures: any[]) => {
-    try {
-      for (const departure of departures) {
-        await addDeparture(departure);
-      }
-      
-      toast({
-        title: "Success",
-        description: `Successfully uploaded ${departures.length} departures`,
-      });
-      
-      setShowBulkUpload(false);
-    } catch (error) {
-      console.error('Bulk upload error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload departures",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Selection handlers
   const handleSelectDeparture = (departureId: string, checked: boolean) => {
     const newSelected = new Set(selectedDepartures);
@@ -572,6 +550,12 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   };
 
   if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
