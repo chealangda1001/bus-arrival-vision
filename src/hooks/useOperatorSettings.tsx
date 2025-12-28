@@ -2,6 +2,26 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
+// Default announcement scripts to use when templates are empty
+const DEFAULT_ANNOUNCEMENT_SCRIPTS = {
+  english: "Attention please. Passengers traveling to {destination}, please proceed to the boarding gate, we will be departing soon. We will be traveling to {destination}, and the journey will take about {trip_duration} hours, We will have a {break_duration} minute break so everyone can use the restroom or grab a quick snack, We will arrive in {destination} in around {trip_duration} hours. We wish you a safe and enjoyable bus ride. Thank you for traveling with {operator_name}!",
+  khmer: "សូមអញ្ជើញអ្នកដំណើរទាំងអស់, ដែលកំពុងធ្វើដំណើរ, ទៅកាន់{destination}, តាមរយៈឡាន{fleet_type}, អញ្ជើញឡើងរថយន្ត, ដែលមានស្លាកលេខ, {fleet_plate_number}, យើងនឹងចាក់ចេញដំណើរទៅកាន់ {destination} ក្នុងពេលបន្តិចទៀតនេះ, ហើយការធ្វើដំណើរនេះមានរយៈពេលប្រហែល {trip_duration} ម៉ោង, យើងនឹងមានការឈប់សំរាកប្រមាណ {break_duration} នាទី, សម្រាប់អ្នកទាំងអស់គ្នាទៅបន្ទប់ទឹក ឬទិញអាហារតិចតួច, យើងនឹងទៅដល់ {destination} ប្រមាណ {trip_duration} ម៉ោងបន្ទាប់, សូមអរគុណសម្រាប់ការធ្វើដំណើររបស់អ្នក, ជាមួយក្រុមហ៊ុន, {operator_name}, យើងខ្ញុំសូមជូនពរអស់លោក, លោកស្រី, ឲ្យធ្វើដំណើរប្រកបដោយសុវត្ថិភាព សូមអរគុណ",
+  chinese: "各位旅客请注意：前往 {destination} 的乘客请前往登车口，我们即将出发。本次行程将前往 {destination}，全程大约 {trip_duration} 小时。途中我们会停靠一次，休息 {break_duration} 分钟，方便大家使用洗手间或购买一些小吃。预计 {trip_duration} 小时后抵达 {destination}。祝您旅途平安愉快！感谢您选择 {operator_name}！"
+};
+
+// Normalize settings to ensure all announcement scripts have valid content
+const normalizeSettings = (data: any): any => {
+  const scripts = data.announcement_scripts || {};
+  return {
+    ...data,
+    announcement_scripts: {
+      english: scripts.english?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.english,
+      khmer: scripts.khmer?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.khmer,
+      chinese: scripts.chinese?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.chinese,
+    }
+  };
+};
+
 export interface VoiceSettings {
   voice: 'male' | 'female';
   voice_model?: 'Zephyr' | 'Kore' | 'Luna';
@@ -51,7 +71,7 @@ export const useOperatorSettings = (operatorId?: string) => {
       }
 
       if (data) {
-        setSettings(data as unknown as OperatorSettings);
+        setSettings(normalizeSettings(data) as OperatorSettings);
       } else {
         // Create default settings if none exist
         await createDefaultSettings();

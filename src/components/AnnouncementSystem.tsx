@@ -92,7 +92,7 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
-  // Check cache status for all languages
+  // Check cache status for all languages (skip empty templates)
   const checkAllCacheStatus = async () => {
     if (!departure || !operatorId) return;
 
@@ -101,23 +101,26 @@ export default function AnnouncementSystem({
     const englishText = generateAnnouncementText(script.english, departure, 'english');
     const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
 
-    const khmerCacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
-    const englishCacheKey = `english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`;
-    const chineseCacheKey = `chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`;
-
-    const [khmerStatus, englishStatus, chineseStatus] = await Promise.all([
-      checkCacheStatus(khmerCacheKey),
-      checkCacheStatus(englishCacheKey),
-      checkCacheStatus(chineseCacheKey)
+    // Only check cache for non-empty templates
+    const cacheChecks = await Promise.all([
+      khmerText.trim() 
+        ? checkCacheStatus(`gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`)
+        : Promise.resolve('missing' as const),
+      englishText.trim()
+        ? checkCacheStatus(`english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`)
+        : Promise.resolve('missing' as const),
+      chineseText.trim()
+        ? checkCacheStatus(`chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`)
+        : Promise.resolve('missing' as const)
     ]);
 
     setCacheStatus({
-      khmer: khmerStatus,
-      english: englishStatus,
-      chinese: chineseStatus
+      khmer: cacheChecks[0],
+      english: cacheChecks[1],
+      chinese: cacheChecks[2]
     });
 
-    console.log('Cache status check:', { khmerStatus, englishStatus, chineseStatus });
+    console.log('Cache status check:', { khmer: cacheChecks[0], english: cacheChecks[1], chinese: cacheChecks[2] });
   };
 
   // Generate Khmer TTS using Gemini 2.5 Pro with native Unicode support
@@ -306,33 +309,45 @@ export default function AnnouncementSystem({
       for (let repeat = 1; repeat <= repeatCount; repeat++) {
         setCurrentRepeat(repeat);
         
-        // Play Khmer first using native Google Cloud TTS (use cache if available)
-        setCurrentLanguage('khmer');
-        console.log('🎯 Playing Khmer announcement...');
-        const khmerAudio = await generateDirectKhmerTTS(khmerText, false);
-        await audioQueueRef.current.addToQueue(khmerAudio);
-        while (audioQueueRef.current.playing) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // Play Khmer first using native Google Cloud TTS (skip if empty)
+        if (khmerText.trim()) {
+          setCurrentLanguage('khmer');
+          console.log('🎯 Playing Khmer announcement...');
+          const khmerAudio = await generateDirectKhmerTTS(khmerText, false);
+          await audioQueueRef.current.addToQueue(khmerAudio);
+          while (audioQueueRef.current.playing) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
+        } else {
+          console.log('⏭️ Skipping Khmer - empty template');
         }
-        await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
         
-        // Play English second (use cache if available)
-        setCurrentLanguage('english');
-        console.log('🎯 Playing English announcement...');
-        const englishAudio = await generateDirectTTS(englishText, 'english', false);
-        await audioQueueRef.current.addToQueue(englishAudio);
-        while (audioQueueRef.current.playing) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // Play English second (skip if empty)
+        if (englishText.trim()) {
+          setCurrentLanguage('english');
+          console.log('🎯 Playing English announcement...');
+          const englishAudio = await generateDirectTTS(englishText, 'english', false);
+          await audioQueueRef.current.addToQueue(englishAudio);
+          while (audioQueueRef.current.playing) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
+        } else {
+          console.log('⏭️ Skipping English - empty template');
         }
-        await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
         
-        // Play Chinese third (use cache if available)
-        setCurrentLanguage('chinese');
-        console.log('🎯 Playing Chinese announcement...');
-        const chineseAudio = await generateDirectTTS(chineseText, 'chinese', false);
-        await audioQueueRef.current.addToQueue(chineseAudio);
-        while (audioQueueRef.current.playing) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // Play Chinese third (skip if empty)
+        if (chineseText.trim()) {
+          setCurrentLanguage('chinese');
+          console.log('🎯 Playing Chinese announcement...');
+          const chineseAudio = await generateDirectTTS(chineseText, 'chinese', false);
+          await audioQueueRef.current.addToQueue(chineseAudio);
+          while (audioQueueRef.current.playing) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } else {
+          console.log('⏭️ Skipping Chinese - empty template');
         }
         
         // Pause between repeats (except after the last one)
@@ -405,15 +420,27 @@ export default function AnnouncementSystem({
       setIsPlaying(true);
       setIsGenerating(true);
 
-      // Force regenerate all languages
-      console.log('🔄 Force regenerating Khmer...');
-      const khmerAudio = await generateDirectKhmerTTS(khmerText, true);
+      // Force regenerate all languages (skip empty templates)
+      if (khmerText.trim()) {
+        console.log('🔄 Force regenerating Khmer...');
+        await generateDirectKhmerTTS(khmerText, true);
+      } else {
+        console.log('⏭️ Skipping Khmer regeneration - empty template');
+      }
       
-      console.log('🔄 Force regenerating English...');
-      const englishAudio = await generateDirectTTS(englishText, 'english', true);
+      if (englishText.trim()) {
+        console.log('🔄 Force regenerating English...');
+        await generateDirectTTS(englishText, 'english', true);
+      } else {
+        console.log('⏭️ Skipping English regeneration - empty template');
+      }
       
-      console.log('🔄 Force regenerating Chinese...');
-      const chineseAudio = await generateDirectTTS(chineseText, 'chinese', true);
+      if (chineseText.trim()) {
+        console.log('🔄 Force regenerating Chinese...');
+        await generateDirectTTS(chineseText, 'chinese', true);
+      } else {
+        console.log('⏭️ Skipping Chinese regeneration - empty template');
+      }
 
       console.log('✅ Force regeneration complete');
       toast({
