@@ -449,6 +449,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          branch_id: string | null
           created_at: string
           id: string
           operator_id: string | null
@@ -457,6 +458,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           id: string
           operator_id?: string | null
@@ -465,6 +467,7 @@ export type Database = {
           username: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           operator_id?: string | null
@@ -473,6 +476,13 @@ export type Database = {
           username?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_operator_id_fkey"
             columns: ["operator_id"]
@@ -597,18 +607,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_operator_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_current_user_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      set_user_context: {
-        Args: { user_role?: string; username: string } | { username: string }
-        Returns: undefined
-      }
+      get_current_user_branch_id: { Args: never; Returns: string }
+      get_current_user_operator_id: { Args: never; Returns: string }
+      get_current_user_role: { Args: never; Returns: string }
+      set_user_context:
+        | { Args: { username: string }; Returns: undefined }
+        | { Args: { user_role?: string; username: string }; Returns: undefined }
     }
     Enums: {
       fleet_type: "VIP Van" | "Bus" | "Sleeping Bus"

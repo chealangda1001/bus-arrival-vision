@@ -13,8 +13,12 @@ const OperatorAdmin = () => {
   const { getDefaultBranch } = useBranches();
 
   const defaultBranch = getDefaultBranch(operatorSlug!);
+  
+  // Use the user's assigned branch if they have one, otherwise use the default branch
+  const activeBranchId = profile?.branch_id || defaultBranch?.id;
+  const activeOperatorId = profile?.operator_id || defaultBranch?.operator_id;
 
-  console.log('OperatorAdmin - profile:', profile, 'loading:', loading, 'operatorSlug:', operatorSlug);
+  console.log('OperatorAdmin - profile:', profile, 'loading:', loading, 'operatorSlug:', operatorSlug, 'activeBranchId:', activeBranchId);
 
   // Redirect to auth page if not authenticated
   useEffect(() => {
@@ -48,9 +52,16 @@ const OperatorAdmin = () => {
               <ArrowLeft className="w-4 h-4" />
               Back to Board
             </Button>
-            <h1 className="text-3xl font-bold text-text-display">
-              {profile.operator?.name || operatorSlug} Admin
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-text-display">
+                {profile.operator?.name || operatorSlug} Admin
+              </h1>
+              {profile.branch && (
+                <p className="text-text-display/60 text-sm">
+                  Branch: {profile.branch.name}
+                </p>
+              )}
+            </div>
           </div>
           <Button 
             variant="outline" 
@@ -62,7 +73,7 @@ const OperatorAdmin = () => {
           </Button>
         </div>
 
-        <AdminPanel branchId={defaultBranch?.id} operatorId={defaultBranch?.operator_id} />
+        <AdminPanel branchId={activeBranchId} operatorId={activeOperatorId} />
       </div>
     </div>
   );

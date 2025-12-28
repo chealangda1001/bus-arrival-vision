@@ -8,11 +8,17 @@ interface Profile {
   username: string;
   role: 'super_admin' | 'operator_admin';
   operator_id?: string;
+  branch_id?: string;
   operator?: {
     id: string;
     name: string;
     slug: string;
     logo_url?: string;
+  };
+  branch?: {
+    id: string;
+    name: string;
+    slug: string;
   };
 }
 
@@ -46,11 +52,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           username,
           role,
           operator_id,
+          branch_id,
           operators:operator_id (
             id,
             name,
             slug,
             logo_url
+          ),
+          branches:branch_id (
+            id,
+            name,
+            slug
           )
         `)
         .eq('id', userId)
@@ -73,11 +85,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         username: data.username,
         role: data.role as 'super_admin' | 'operator_admin',
         operator_id: data.operator_id || undefined,
+        branch_id: data.branch_id || undefined,
         operator: data.operators ? {
           id: data.operators.id,
           name: data.operators.name,
           slug: data.operators.slug,
           logo_url: data.operators.logo_url
+        } : undefined,
+        branch: data.branches ? {
+          id: data.branches.id,
+          name: data.branches.name,
+          slug: data.branches.slug
         } : undefined
       };
       

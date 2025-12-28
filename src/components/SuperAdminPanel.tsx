@@ -90,12 +90,14 @@ const SuperAdminPanel = () => {
     username: "",
     password: "",
     operator_id: "",
+    branch_id: "" as string | null,
     role: "operator_admin" as "operator_admin" | "super_admin"
   });
   const [editAdmin, setEditAdmin] = useState({
     username: "",
     password: "",
     operator_id: "",
+    branch_id: "" as string | null,
     role: "operator_admin" as "operator_admin" | "super_admin"
   });
 
@@ -595,8 +597,13 @@ const SuperAdminPanel = () => {
           username,
           role,
           operator_id,
+          branch_id,
           created_at,
           operators (
+            name,
+            slug
+          ),
+          branches (
             name,
             slug
           )
@@ -658,7 +665,8 @@ const SuperAdminPanel = () => {
         .update({
           username: newAdmin.username,
           role: newAdmin.role,
-          operator_id: newAdmin.operator_id
+          operator_id: newAdmin.operator_id,
+          branch_id: newAdmin.branch_id || null
         })
         .eq('id', authData.user.id);
 
@@ -669,7 +677,7 @@ const SuperAdminPanel = () => {
         description: `Admin account "${newAdmin.username}" created successfully`,
       });
       
-      setNewAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+      setNewAdmin({ username: "", password: "", operator_id: "", branch_id: null, role: "operator_admin" });
       setShowCreateAdmin(false);
       fetchAdminAccounts();
     } catch (error: any) {
@@ -690,6 +698,7 @@ const SuperAdminPanel = () => {
       username: admin.username,
       password: "",
       operator_id: admin.operator_id,
+      branch_id: admin.branch_id || null,
       role: admin.role
     });
   };
@@ -714,6 +723,7 @@ const SuperAdminPanel = () => {
         .update({
           username: editAdmin.username,
           operator_id: editAdmin.operator_id,
+          branch_id: editAdmin.branch_id || null,
           role: editAdmin.role
         })
         .eq('id', editingAdmin);
@@ -735,7 +745,7 @@ const SuperAdminPanel = () => {
       }
       
       setEditingAdmin(null);
-      setEditAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+      setEditAdmin({ username: "", password: "", operator_id: "", branch_id: null, role: "operator_admin" });
       fetchAdminAccounts();
     } catch (error: any) {
       console.error('Update admin error:', error);
@@ -785,9 +795,9 @@ const SuperAdminPanel = () => {
 
   const cancelAdminEdit = () => {
     setEditingAdmin(null);
-    setEditAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+    setEditAdmin({ username: "", password: "", operator_id: "", branch_id: null, role: "operator_admin" });
     setShowCreateAdmin(false);
-    setNewAdmin({ username: "", password: "", operator_id: "", role: "operator_admin" });
+    setNewAdmin({ username: "", password: "", operator_id: "", branch_id: null, role: "operator_admin" });
   };
 
   // Initialize admin accounts on component mount
@@ -1615,7 +1625,7 @@ const SuperAdminPanel = () => {
                       <Label htmlFor="admin-operator">Operator *</Label>
                       <Select
                         value={newAdmin.operator_id}
-                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, operator_id: value }))}
+                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, operator_id: value, branch_id: null }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select operator" />
@@ -1624,6 +1634,26 @@ const SuperAdminPanel = () => {
                           {operators.map((operator) => (
                             <SelectItem key={operator.id} value={operator.id}>
                               {operator.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-branch">Branch (optional - leave empty for all branches)</Label>
+                      <Select
+                        value={newAdmin.branch_id || "all"}
+                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, branch_id: value === "all" ? null : value }))}
+                        disabled={!newAdmin.operator_id}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All branches" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Branches (Operator-Level Access)</SelectItem>
+                          {getBranchesForOperator(newAdmin.operator_id).map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>
+                              {branch.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1701,7 +1731,7 @@ const SuperAdminPanel = () => {
                               <Label htmlFor="edit-admin-operator">Operator *</Label>
                               <Select
                                 value={editAdmin.operator_id}
-                                onValueChange={(value) => setEditAdmin(prev => ({ ...prev, operator_id: value }))}
+                                onValueChange={(value) => setEditAdmin(prev => ({ ...prev, operator_id: value, branch_id: null }))}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select operator" />
@@ -1710,6 +1740,26 @@ const SuperAdminPanel = () => {
                                   {operators.map((operator) => (
                                     <SelectItem key={operator.id} value={operator.id}>
                                       {operator.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="edit-admin-branch">Branch (optional)</Label>
+                              <Select
+                                value={editAdmin.branch_id || "all"}
+                                onValueChange={(value) => setEditAdmin(prev => ({ ...prev, branch_id: value === "all" ? null : value }))}
+                                disabled={!editAdmin.operator_id}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="All branches" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Branches (Operator-Level Access)</SelectItem>
+                                  {getBranchesForOperator(editAdmin.operator_id).map((branch) => (
+                                    <SelectItem key={branch.id} value={branch.id}>
+                                      {branch.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1747,7 +1797,9 @@ const SuperAdminPanel = () => {
                             <div>
                               <h4 className="text-lg font-semibold text-text-display">{admin.username}</h4>
                               <p className="text-text-display/60">
-                                {admin.operators?.name} • {admin.role}
+                                {admin.operators?.name} 
+                                {admin.branches?.name ? ` • ${admin.branches.name}` : ' • All Branches'} 
+                                {' • '}{admin.role}
                               </p>
                               <p className="text-sm text-text-display/40">
                                 Created: {new Date(admin.created_at).toLocaleDateString()}
