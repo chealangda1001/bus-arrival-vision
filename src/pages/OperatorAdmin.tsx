@@ -3,7 +3,7 @@ import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useBranches } from "@/hooks/useBranches";
 import AdminPanel from "@/components/AdminPanel";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, LogOut, User, Building2 } from "lucide-react";
 import { useEffect } from "react";
 
 const OperatorAdmin = () => {
@@ -56,21 +56,40 @@ const OperatorAdmin = () => {
               <h1 className="text-3xl font-bold text-text-display">
                 {profile.operator?.name || operatorSlug} Admin
               </h1>
-              {profile.branch && (
-                <p className="text-text-display/60 text-sm">
-                  Branch: {profile.branch.name}
-                </p>
-              )}
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={signOut}
-            className="flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
+          
+          <div className="flex items-center gap-4">
+            {/* User Session Info Card */}
+            <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Logged in as: </span>
+                  <span className="font-medium text-foreground">{profile.username}</span>
+                </div>
+              </div>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-muted-foreground" />
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Branch: </span>
+                  <span className="font-medium text-foreground">
+                    {profile.branch?.name || 'All Branches'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              onClick={signOut}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         <AdminPanel branchId={activeBranchId} operatorId={activeOperatorId} />
