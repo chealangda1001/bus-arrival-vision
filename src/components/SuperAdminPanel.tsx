@@ -628,10 +628,21 @@ const SuperAdminPanel = () => {
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newAdmin.username || !newAdmin.password || !newAdmin.operator_id) {
+    // For super_admin, operator is not required
+    // For operator_admin, operator is required
+    if (!newAdmin.username || !newAdmin.password) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newAdmin.role === 'operator_admin' && !newAdmin.operator_id) {
+      toast({
+        title: "Error",
+        description: "Please select an operator for operator admin accounts",
         variant: "destructive",
       });
       return;
@@ -639,43 +650,44 @@ const SuperAdminPanel = () => {
 
     setLoadingAdmins(true);
     try {
-      // Create user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newAdmin.username,
-        password: newAdmin.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
+      // Call the edge function to create admin user
+      const response = await fetch(
+        `https://eguoekxuwnerumhehheo.supabase.co/functions/v1/create-admin-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email: newAdmin.username,
+            password: newAdmin.password,
             username: newAdmin.username,
             role: newAdmin.role,
-            operator_id: newAdmin.operator_id
-          }
+            operator_id: newAdmin.role === 'super_admin' ? null : newAdmin.operator_id,
+            branch_id: newAdmin.role === 'super_admin' ? null : (newAdmin.branch_id || null)
+          })
         }
-      });
+      );
 
-      if (authError) throw authError;
+      const result = await response.json();
 
-      if (!authData.user) {
-        throw new Error('User creation failed - no user data returned');
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create admin account');
       }
 
-      // Update the profile that was auto-created by the trigger
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          username: newAdmin.username,
-          role: newAdmin.role,
-          operator_id: newAdmin.operator_id,
-          branch_id: newAdmin.branch_id || null
-        })
-        .eq('id', authData.user.id);
-
-      if (profileError) throw profileError;
-
-      toast({
-        title: "Success",
-        description: `Admin account "${newAdmin.username}" created successfully`,
-      });
+      if (result.warning) {
+        toast({
+          title: "Warning",
+          description: result.warning,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Admin account "${newAdmin.username}" created successfully. They can now login.`,
+        });
+      }
       
       setNewAdmin({ username: "", password: "", operator_id: "", branch_id: null, role: "operator_admin" });
       setShowCreateAdmin(false);
@@ -1601,12 +1613,39 @@ const SuperAdminPanel = () => {
                 <form onSubmit={handleCreateAdmin} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="admin-username">Username *</Label>
+                      <Label htmlFor="admin-role">Role *</Label>
+                      <Select
+                        value={newAdmin.role}
+                        onValueChange={(value: "operator_admin" | "super_admin") => setNewAdmin(prev => ({ 
+                          ...prev, 
+                          role: value,
+                          // Clear operator/branch when switching to super_admin
+                          operator_id: value === 'super_admin' ? '' : prev.operator_id,
+                          branch_id: value === 'super_admin' ? null : prev.branch_id
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="super_admin">Super Admin (Full Access)</SelectItem>
+                          <SelectItem value="operator_admin">Operator Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newAdmin.role === 'super_admin' 
+                          ? 'Super admins have full access to all operators and settings'
+                          : 'Operator admins can only manage their assigned operator'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-username">Email Address *</Label>
                       <Input
                         id="admin-username"
+                        type="email"
                         value={newAdmin.username}
                         onChange={(e) => setNewAdmin(prev => ({ ...prev, username: e.target.value }))}
-                        placeholder="admin_username"
+                        placeholder="admin@example.com"
                         required
                       />
                     </div>
@@ -1617,67 +1656,59 @@ const SuperAdminPanel = () => {
                         type="password"
                         value={newAdmin.password}
                         onChange={(e) => setNewAdmin(prev => ({ ...prev, password: e.target.value }))}
-                        placeholder="Enter password"
+                        placeholder="Enter password (min 6 characters)"
                         required
+                        minLength={6}
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="admin-operator">Operator *</Label>
-                      <Select
-                        value={newAdmin.operator_id}
-                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, operator_id: value, branch_id: null }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select operator" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {operators.map((operator) => (
-                            <SelectItem key={operator.id} value={operator.id}>
-                              {operator.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="admin-branch">Branch (optional - leave empty for all branches)</Label>
-                      <Select
-                        value={newAdmin.branch_id || "all"}
-                        onValueChange={(value) => setNewAdmin(prev => ({ ...prev, branch_id: value === "all" ? null : value }))}
-                        disabled={!newAdmin.operator_id}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="All branches" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Branches (Operator-Level Access)</SelectItem>
-                          {getBranchesForOperator(newAdmin.operator_id).map((branch) => (
-                            <SelectItem key={branch.id} value={branch.id}>
-                              {branch.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="admin-role">Role *</Label>
-                      <Select
-                        value={newAdmin.role}
-                        onValueChange={(value: "operator_admin" | "super_admin") => setNewAdmin(prev => ({ ...prev, role: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="operator_admin">Operator Admin</SelectItem>
-                          <SelectItem value="super_admin">Super Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {newAdmin.role === 'operator_admin' && (
+                      <>
+                        <div>
+                          <Label htmlFor="admin-operator">Operator *</Label>
+                          <Select
+                            value={newAdmin.operator_id}
+                            onValueChange={(value) => setNewAdmin(prev => ({ ...prev, operator_id: value, branch_id: null }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select operator" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {operators.map((operator) => (
+                                <SelectItem key={operator.id} value={operator.id}>
+                                  {operator.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="admin-branch">Branch (optional)</Label>
+                          <Select
+                            value={newAdmin.branch_id || "all"}
+                            onValueChange={(value) => setNewAdmin(prev => ({ ...prev, branch_id: value === "all" ? null : value }))}
+                            disabled={!newAdmin.operator_id}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="All branches" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Branches (Operator-Level Access)</SelectItem>
+                              {getBranchesForOperator(newAdmin.operator_id).map((branch) => (
+                                <SelectItem key={branch.id} value={branch.id}>
+                                  {branch.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
-                    <Button type="submit">Create Admin Account</Button>
+                    <Button type="submit" disabled={loadingAdmins}>
+                      {loadingAdmins ? 'Creating...' : 'Create Admin Account'}
+                    </Button>
                     <Button type="button" variant="outline" onClick={cancelAdminEdit}>
                       Cancel
                     </Button>
