@@ -84,6 +84,40 @@ export const useBranches = (operatorId?: string) => {
     }
   };
 
+  const updateBranch = async (id: string, updates: { name?: string; slug?: string; location?: string; is_default?: boolean }) => {
+    try {
+      const { error } = await supabase
+        .from('branches')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Branch updated successfully" });
+      fetchBranches();
+    } catch (error) {
+      console.error('Error updating branch:', error);
+      toast({ title: "Error", description: "Failed to update branch", variant: "destructive" });
+    }
+  };
+
+  const deleteBranch = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('branches')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Branch deleted successfully" });
+      fetchBranches();
+    } catch (error) {
+      console.error('Error deleting branch:', error);
+      toast({ title: "Error", description: "Failed to delete branch", variant: "destructive" });
+    }
+  };
+
   const getBranchBySlug = (operatorSlug: string, branchSlug: string): Branch | null => {
     return branches.find(
       branch => 
@@ -108,6 +142,8 @@ export const useBranches = (operatorId?: string) => {
     branches,
     loading,
     createBranch,
+    updateBranch,
+    deleteBranch,
     getBranchBySlug,
     getDefaultBranch,
     refetch: fetchBranches
