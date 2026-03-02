@@ -75,6 +75,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
     fleet_id: "",
     trip_duration: "",
     break_duration: "",
+    branch_id: "",
     // Legacy fields for manual entry
     plate_number: "",
     fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
@@ -201,6 +202,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
       fleet_id: (departure as any).fleet_id || "",
       trip_duration: departure.trip_duration || "",
       break_duration: departure.break_duration || "",
+      branch_id: (departure as any).branch_id || branchId || "",
       plate_number: departure.plate_number,
       fleet_type: departure.fleet_type,
       fleet_image_url: departure.fleet_image_url || ""
@@ -234,13 +236,13 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
           status: editDeparture.status,
           estimated_time: editDeparture.estimated_time || null,
           fleet_id: editDeparture.fleet_id !== "manual" ? editDeparture.fleet_id || null : null,
-          // Use fleet data if available, otherwise use manual input
           plate_number: selectedFleet?.plate_number || editDeparture.plate_number,
           fleet_type: selectedFleet?.fleet_type || editDeparture.fleet_type,
           fleet_image_url: selectedFleet?.fleet_image_url || editDeparture.fleet_image_url || null,
           trip_duration: editDeparture.trip_duration || null,
           break_duration: editDeparture.break_duration || null,
-          is_visible: true, // Keep visible when editing
+          branch_id: editDeparture.branch_id || branchId,
+          is_visible: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingDeparture);
@@ -262,6 +264,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
         fleet_id: "",
         trip_duration: "",
         break_duration: "",
+        branch_id: "",
         plate_number: "",
         fleet_type: "Bus",
         fleet_image_url: ""
@@ -290,6 +293,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
       fleet_id: "",
       trip_duration: "",
       break_duration: "",
+      branch_id: "",
       plate_number: "",
       fleet_type: "Bus",
       fleet_image_url: ""
@@ -912,6 +916,28 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Branch Selection - only for HQ admins */}
+                {!userBranchId && branches.length > 0 && (
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="edit-branch">Branch *</Label>
+                    <Select
+                      value={editDeparture.branch_id}
+                      onValueChange={(value) => setEditDeparture(prev => ({...prev, branch_id: value}))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}{branch.is_default ? ' (HQ)' : ''}{branch.location ? ` — ${branch.location}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <Label htmlFor="edit-leaving-from">Leaving From</Label>
