@@ -1,11 +1,11 @@
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useDriverDepartures } from "@/hooks/useDriverDepartures";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
-import AnnouncementSystem from "@/components/AnnouncementSystem";
+import DriverAnnouncementPlayer from "@/components/DriverAnnouncementPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Clock, MapPin, Loader2 } from "lucide-react";
+import { LogOut, Clock, MapPin, Loader2, Play } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 
@@ -71,8 +71,8 @@ const DriverDashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Simple Header */}
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <h1 className="text-lg font-bold text-foreground">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold text-foreground truncate">
             {profile?.username || 'Driver'}
           </h1>
           <p className="text-xs text-muted-foreground">Driver Dashboard</p>
@@ -81,7 +81,7 @@ const DriverDashboard = () => {
           variant="outline" 
           size="sm" 
           onClick={signOut}
-          className="flex items-center gap-1"
+          className="flex items-center gap-1 shrink-0"
         >
           <LogOut className="w-4 h-4" />
           Logout
@@ -105,24 +105,24 @@ const DriverDashboard = () => {
         ) : (
           departures.map(departure => (
             <Card key={departure.id} className="border-2 border-border">
-              <CardContent className="p-5 space-y-4">
+              <CardContent className="p-4 space-y-3">
                 {/* Departure Info */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {departure.leaving_from && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground truncate">
                       {departure.leaving_from} →
                     </p>
                   )}
-                  <h2 className="text-2xl font-bold text-foreground">
+                  <h2 className="text-xl font-bold text-foreground truncate">
                     {departure.destination}
                   </h2>
-                  <div className="flex items-center gap-4 text-muted-foreground">
+                  <div className="flex items-center gap-3 text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-lg font-semibold text-foreground">{departure.departure_time}</span>
+                      <Clock className="w-4 h-4 shrink-0" />
+                      <span className="text-base font-semibold text-foreground">{departure.departure_time}</span>
                     </div>
                     {departure.plate_number && (
-                      <Badge variant="secondary" className="text-sm">
+                      <Badge variant="secondary" className="text-xs">
                         {departure.plate_number}
                       </Badge>
                     )}
@@ -130,7 +130,7 @@ const DriverDashboard = () => {
                 </div>
 
                 {/* Play Buttons - One per driver-playable type */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {driverPlayableTypes.map(type => {
                     const key = getAnnouncementKey(departure.id, type.type_key);
                     const isPlaying = playingAnnouncements[key];
@@ -138,30 +138,31 @@ const DriverDashboard = () => {
                     return (
                       <div key={type.type_key}>
                         {isPlaying ? (
-                          <>
-                            <AnnouncementSystem
-                              departure={departure}
-                              operatorId={profile?.operator_id}
-                              manualTrigger={true}
-                              announcementTypeKey={type.type_key}
-                              breakDurationOverride={type.default_break_duration ?? undefined}
-                              onComplete={() => stopAnnouncement(departure.id, type.type_key)}
-                            />
-                          </>
+                          <DriverAnnouncementPlayer
+                            departure={departure}
+                            operatorId={profile?.operator_id}
+                            announcementTypeKey={type.type_key}
+                            breakDurationOverride={type.default_break_duration ?? undefined}
+                            onClose={() => stopAnnouncement(departure.id, type.type_key)}
+                          />
                         ) : (
-                          <Button
+                          <button
                             onClick={() => startAnnouncement(departure.id, type.type_key)}
-                            className={`w-full h-16 text-xl font-bold text-primary-foreground ${getTypeColor(type.type_key)}`}
-                            size="lg"
+                            className={`w-full flex items-center justify-between rounded-lg px-3 py-3 text-primary-foreground ${getTypeColor(type.type_key)} active:scale-[0.98] transition-transform`}
                           >
-                            <span className="mr-2 text-2xl">{getTypeIcon(type.type_key)}</span>
-                            {type.type_name}
-                            {type.default_break_duration && (
-                              <span className="ml-2 text-base opacity-80">
-                                ({type.default_break_duration}min)
-                              </span>
-                            )}
-                          </Button>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-lg shrink-0">{getTypeIcon(type.type_key)}</span>
+                              <span className="text-sm font-semibold truncate">{type.type_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {type.default_break_duration && (
+                                <span className="text-xs opacity-80">
+                                  ({type.default_break_duration}min)
+                                </span>
+                              )}
+                              <Play className="w-5 h-5 fill-current" />
+                            </div>
+                          </button>
                         )}
                       </div>
                     );
