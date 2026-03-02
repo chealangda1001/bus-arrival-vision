@@ -47,16 +47,27 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if the requesting user is a super_admin
+    // Check if the requesting user is a super_admin or operator_admin
     const { data: requestingProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, operator_id')
       .eq('id', requestingUser.id)
       .single()
 
-    if (profileError || requestingProfile?.role !== 'super_admin') {
+    if (profileError || !requestingProfile) {
       return new Response(
-        JSON.stringify({ error: 'Only super admins can create admin accounts' }),
+        JSON.stringify({ error: 'Could not verify user role' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const isSuperAdmin = requestingProfile.role === 'super_admin'
+    const isOperatorAdmin = requestingProfile.role === 'operator_admin'
+
+    // operator_admin can only create driver accounts within their operator
+    if (!isSuperAdmin && !isOperatorAdmin) {
+      return new Response(
+        JSON.stringify({ error: 'Insufficient permissions' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -81,9 +92,33 @@ Deno.serve(async (req) => {
     }
 
     // Validate role
-    if (!['super_admin', 'operator_admin'].includes(role)) {
+    if (!['super_admin', 'operator_admin', 'driver'].includes(role)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid role. Must be super_admin or operator_admin' }),
+        JSON.stringify({ error: 'Invalid role. Must be super_admin, operator_admin, or driver' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // operator_admin can only create driver accounts
+    if (isOperatorAdmin && role !== 'driver') {
+      return new Response(
+        JSON.stringify({ error: 'Operator admins can only create driver accounts' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // operator_admin must create drivers within their own operator
+    if (isOperatorAdmin && operator_id !== requestingProfile.operator_id) {
+      return new Response(
+        JSON.stringify({ error: 'Cannot create drivers for a different operator' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // For driver role, require operator_id and branch_id
+    if (role === 'driver' && (!operator_id || !branch_id)) {
+      return new Response(
+        JSON.stringify({ error: 'operator_id and branch_id are required for driver role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

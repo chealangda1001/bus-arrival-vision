@@ -12,6 +12,7 @@ import OperatorAdmin from "./pages/OperatorAdmin";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./components/AuthPage";
 import GeminiTTSDemo from "./components/GeminiTTSDemo";
+import DriverDashboard from "./pages/DriverDashboard";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/operator/:operatorSlug/branch/:branchSlug" element={<BranchBoard />} />
             <Route path="/operator/:operatorSlug/admin" element={<OperatorAdmin />} />
             <Route path="/gemini-tts-demo" element={<GeminiTTSDemo />} />
+            <Route path="/driver" element={<DriverDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

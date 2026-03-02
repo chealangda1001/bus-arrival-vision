@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.gemini-khmer-tts]
 verify_jwt = false
+
+[functions.create-admin-user]
+verify_jwt = false
