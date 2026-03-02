@@ -19,6 +19,8 @@ export interface AnnouncementType {
     chinese: { voice: string; voice_model?: string; speed: number; pitch: number };
   };
   repeat_count: number;
+  default_break_duration: number | null;
+  driver_playable: boolean;
   is_active: boolean;
   is_default: boolean;
   created_at: string;

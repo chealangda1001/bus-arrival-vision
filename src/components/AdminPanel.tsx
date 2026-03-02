@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical, Coffee } from "lucide-react";
+import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical, Coffee, UtensilsCrossed } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import FleetManagement from "./FleetManagement";
 import OperatorSettings from "./OperatorSettings";
 import AnnouncementSystem from "./AnnouncementSystem";
+import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { TranslationManagement } from "./TranslationManagement";
 import BulkUploadDepartures from "./BulkUploadDepartures";
 
@@ -29,6 +30,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   console.log('AdminPanel - received from useDepartures:', Object.keys(hookResult));
   const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = hookResult;
   const { fleets } = useFleets(operatorId);
+  const { types: announcementTypes } = useAnnouncementTypes(operatorId);
   const { toast } = useToast();
   
   // State variables
@@ -40,7 +42,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
   const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
-  const [breakAnnouncements, setBreakAnnouncements] = useState<Record<string, boolean>>({});
+  const [activeTypeAnnouncements, setActiveTypeAnnouncements] = useState<Record<string, string | null>>({});
   const [selectedDepartures, setSelectedDepartures] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [newDeparture, setNewDeparture] = useState({
@@ -332,10 +334,10 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     }));
   };
 
-  const triggerBreakAnnouncement = (departureId: string) => {
-    setBreakAnnouncements(prev => ({
+  const triggerTypeAnnouncement = (departureId: string, typeKey: string) => {
+    setActiveTypeAnnouncements(prev => ({
       ...prev,
-      [departureId]: true
+      [departureId]: typeKey
     }));
   };
 
@@ -1188,10 +1190,16 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                                 Play Departure
                               </DropdownMenuItem>
                               
-                              <DropdownMenuItem onClick={() => triggerBreakAnnouncement(departure.id)}>
-                                <Coffee className="w-4 h-4 mr-2" />
-                                Play Break Announcement
-                              </DropdownMenuItem>
+                              {/* Dynamic driver-playable announcement types */}
+                              {announcementTypes
+                                .filter(t => t.driver_playable && t.is_active)
+                                .map(t => (
+                                  <DropdownMenuItem key={t.type_key} onClick={() => triggerTypeAnnouncement(departure.id, t.type_key)}>
+                                    {t.type_key === 'meal_break' ? <UtensilsCrossed className="w-4 h-4 mr-2" /> : <Coffee className="w-4 h-4 mr-2" />}
+                                    Play {t.type_name}
+                                  </DropdownMenuItem>
+                                ))
+                              }
                               
                               <DropdownMenuItem onClick={() => setUploadingAudioForDeparture(departure.id)}>
                                 <Volume2 className="w-4 h-4 mr-2" />
@@ -1408,18 +1416,21 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
                     )}
 
-                    {/* Break Announcement */}
-                    {breakAnnouncements[departure.id] && (
+                    {/* Driver-Playable Type Announcement */}
+                    {activeTypeAnnouncements[departure.id] && (
                       <div className="mt-6 pt-4 border-t border-border">
                         <AnnouncementSystem
                           departure={departure}
                           operatorId={operatorId}
                           manualTrigger={true}
-                          announcementTypeKey="break_stop"
+                          announcementTypeKey={activeTypeAnnouncements[departure.id]!}
+                          breakDurationOverride={
+                            announcementTypes.find(t => t.type_key === activeTypeAnnouncements[departure.id])?.default_break_duration ?? undefined
+                          }
                           onComplete={() => {
-                            setBreakAnnouncements(prev => ({
+                            setActiveTypeAnnouncements(prev => ({
                               ...prev,
-                              [departure.id]: false
+                              [departure.id]: null
                             }));
                           }}
                         />

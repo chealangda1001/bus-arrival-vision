@@ -22,6 +22,7 @@ interface AnnouncementSystemProps {
   onComplete?: () => void;
   manualTrigger?: boolean;
   announcementTypeKey?: string; // defaults to 'departure'
+  breakDurationOverride?: number; // override {break_duration} placeholder
 }
 
 interface AnnouncementScript {
@@ -35,7 +36,8 @@ export default function AnnouncementSystem({
   operatorId, 
   onComplete, 
   manualTrigger = false,
-  announcementTypeKey = 'departure'
+  announcementTypeKey = 'departure',
+  breakDurationOverride
 }: AnnouncementSystemProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'multi' | 'english' | 'khmer' | 'chinese'>('multi');
@@ -94,7 +96,9 @@ export default function AnnouncementSystem({
     announcementText = announcementText.replace(/{fleet_plate_number}/g, departure.plate_number || '');
     announcementText = announcementText.replace(/{leaving_from}/g, departure.leaving_from || 'Terminal');
     announcementText = announcementText.replace(/{trip_duration}/g, departure.trip_duration || 'N/A');
-    announcementText = announcementText.replace(/{break_duration}/g, departure.break_duration || 'N/A');
+    // Use breakDurationOverride (from announcement type's default_break_duration) if provided
+    const breakDuration = breakDurationOverride?.toString() || departure.break_duration || 'N/A';
+    announcementText = announcementText.replace(/{break_duration}/g, breakDuration);
     
     // Replace operator name from settings
     announcementText = announcementText.replace(/{operator_name}/g, settings?.operator_name || 'BookMeBus');

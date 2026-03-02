@@ -183,7 +183,7 @@ export default function AnnouncementTypeManager({ operatorId }: AnnouncementType
               </AccordionTrigger>
               <AccordionContent className="space-y-6 pt-4">
                 {/* Basic Info */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label>Type Name</Label>
                     <Input
@@ -202,12 +202,31 @@ export default function AnnouncementTypeManager({ operatorId }: AnnouncementType
                       className="w-24"
                     />
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="space-y-2">
+                    <Label>Default Break Duration (min)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={type.default_break_duration ?? ''}
+                      onChange={(e) => updateType(type.id, { default_break_duration: e.target.value ? parseInt(e.target.value) : null } as any)}
+                      placeholder="e.g., 15"
+                      className="w-24"
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 pt-6">
                     <div className="flex items-center gap-2">
                       <Label>Active</Label>
                       <Switch
                         checked={type.is_active}
                         onCheckedChange={(checked) => updateType(type.id, { is_active: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label>Driver Playable</Label>
+                      <Switch
+                        checked={type.driver_playable}
+                        onCheckedChange={(checked) => updateType(type.id, { driver_playable: checked } as any)}
                       />
                     </div>
                   </div>
