@@ -18,9 +18,12 @@ const AuthPage = () => {
   // Redirect after successful authentication
   useEffect(() => {
     if (!loading && user && profile) {
-      if (profile.role === 'super_admin') {
+      const role = profile.role as string;
+      if (role === 'driver') {
+        navigate('/driver');
+      } else if (role === 'super_admin') {
         navigate('/admin');
-      } else if (profile.role === 'operator_admin' && profile.operator) {
+      } else if (role === 'operator_admin' && profile.operator) {
         navigate(`/operator/${profile.operator.slug}/admin`);
       } else {
         navigate('/');

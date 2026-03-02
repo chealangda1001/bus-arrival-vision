@@ -266,6 +266,42 @@ export type Database = {
         }
         Relationships: []
       }
+      driver_departures: {
+        Row: {
+          created_at: string
+          departure_id: string
+          driver_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          departure_id: string
+          driver_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          departure_id?: string
+          driver_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_departures_departure_id_fkey"
+            columns: ["departure_id"]
+            isOneToOne: false
+            referencedRelation: "departures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_departures_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fleet_type_translations: {
         Row: {
           chinese: string

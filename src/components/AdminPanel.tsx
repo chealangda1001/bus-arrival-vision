@@ -19,6 +19,7 @@ import AnnouncementSystem from "./AnnouncementSystem";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { TranslationManagement } from "./TranslationManagement";
 import BulkUploadDepartures from "./BulkUploadDepartures";
+import DriverManagement from "./DriverManagement";
 
 interface AdminPanelProps {
   branchId?: string;
@@ -582,15 +583,18 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="departures">Departure Management</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="departures">Departures</TabsTrigger>
+          <TabsTrigger value="drivers" className="flex items-center gap-2">
+            Drivers
+          </TabsTrigger>
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-4" />
-            Fleet Management
+            Fleets
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Volume2 className="w-4 h-4" />
-            Announcement Settings
+            Settings
           </TabsTrigger>
           <TabsTrigger value="translations" className="flex items-center gap-2">
             Translations
@@ -1452,6 +1456,10 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           </div>
         </div>
       </TabsContent>
+        
+        <TabsContent value="drivers">
+          <DriverManagement operatorId={operatorId} branchId={branchId} />
+        </TabsContent>
         
         <TabsContent value="fleets">
           <FleetManagement operatorId={operatorId} />
