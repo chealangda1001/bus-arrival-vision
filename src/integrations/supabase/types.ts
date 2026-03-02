@@ -18,7 +18,9 @@ export type Database = {
         Row: {
           announcement_scripts: Json
           created_at: string
+          default_break_duration: number | null
           description: string | null
+          driver_playable: boolean
           id: string
           is_active: boolean
           is_default: boolean
@@ -32,7 +34,9 @@ export type Database = {
         Insert: {
           announcement_scripts?: Json
           created_at?: string
+          default_break_duration?: number | null
           description?: string | null
+          driver_playable?: boolean
           id?: string
           is_active?: boolean
           is_default?: boolean
@@ -46,7 +50,9 @@ export type Database = {
         Update: {
           announcement_scripts?: Json
           created_at?: string
+          default_break_duration?: number | null
           description?: string | null
+          driver_playable?: boolean
           id?: string
           is_active?: boolean
           is_default?: boolean
