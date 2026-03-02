@@ -702,6 +702,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      departure_belongs_to_operator: {
+        Args: { p_departure_id: string; p_operator_id: string }
+        Returns: boolean
+      }
       get_current_user_branch_id: { Args: never; Returns: string }
       get_current_user_operator_id: { Args: never; Returns: string }
       get_current_user_role: { Args: never; Returns: string }
