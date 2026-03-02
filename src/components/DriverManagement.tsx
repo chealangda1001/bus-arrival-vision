@@ -95,6 +95,14 @@ const DriverManagement = ({ operatorId, branchId }: DriverManagementProps) => {
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data?.warning) {
+        toast({
+          title: "Warning",
+          description: data.warning,
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({ title: "Success", description: `Driver account created for ${newDriver.email}` });
       setNewDriver({ email: '', password: '', username: '' });
