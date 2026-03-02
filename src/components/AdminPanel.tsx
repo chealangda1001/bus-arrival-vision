@@ -22,13 +22,15 @@ import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { TranslationManagement } from "./TranslationManagement";
 import BulkUploadDepartures from "./BulkUploadDepartures";
 import DriverManagement from "./DriverManagement";
+import BranchUserManagement from "./BranchUserManagement";
 
 interface AdminPanelProps {
   branchId?: string;
   operatorId?: string;
+  userBranchId?: string; // The logged-in user's branch restriction (null = HQ/all branches)
 }
 
-const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
+const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => {
   const hookResult = useDepartures(branchId);
   console.log('AdminPanel - received from useDepartures:', Object.keys(hookResult));
   const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = hookResult;
@@ -597,11 +599,16 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="departures">Departures</TabsTrigger>
           <TabsTrigger value="branches" className="flex items-center gap-2">
             Branches
           </TabsTrigger>
+          {!userBranchId && (
+            <TabsTrigger value="branch-users" className="flex items-center gap-2">
+              Branch Users
+            </TabsTrigger>
+          )}
           <TabsTrigger value="drivers" className="flex items-center gap-2">
             Drivers
           </TabsTrigger>
@@ -678,8 +685,8 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                 </Select>
               </div>
 
-              {/* Branch Selection */}
-              {branches.length > 1 && (
+              {/* Branch Selection - hidden for branch-scoped users */}
+              {!userBranchId && branches.length > 1 && (
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="branch">Branch</Label>
                   <Select
@@ -1500,6 +1507,12 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
         <TabsContent value="branches">
           <BranchManagement operatorId={operatorId} />
         </TabsContent>
+
+        {!userBranchId && (
+          <TabsContent value="branch-users">
+            <BranchUserManagement operatorId={operatorId} />
+          </TabsContent>
+        )}
         
         <TabsContent value="drivers">
           <DriverManagement operatorId={operatorId} branchId={branchId} />
