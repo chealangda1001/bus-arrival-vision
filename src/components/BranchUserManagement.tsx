@@ -5,17 +5,30 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, UserPlus, Copy, Check } from 'lucide-react';
+import { Trash2, UserPlus, Copy, Check, KeyRound, Mail, Calendar, Building2 } from 'lucide-react';
 import { useBranches } from '@/hooks/useBranches';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface BranchUser {
   id: string;
   username: string;
   role: string;
   branch_id: string | null;
-  branch?: { name: string; slug: string } | null;
+  email: string;
+  created_at: string;
+  branches: { name: string; slug: string; location: string | null } | null;
 }
 
 interface BranchUserManagementProps {
@@ -30,6 +43,8 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
+  const [resetCredentials, setResetCredentials] = useState<{ email: string; password: string } | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
     email: string;
     password: string;
@@ -46,18 +61,16 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
   const fetchBranchUsers = async () => {
     if (!operatorId) return;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id, username, role, branch_id,
-          branches:branch_id (name, slug)
-        `)
-        .eq('operator_id', operatorId)
-        .eq('role', 'operator_admin')
-        .not('branch_id', 'is', null);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase.functions.invoke('create-admin-user', {
+        body: { action: 'list-branch-users', operator_id: operatorId },
+      });
 
       if (error) throw error;
-      setBranchUsers(data || []);
+      if (data?.error) throw new Error(data.error);
+      setBranchUsers(data?.users || []);
     } catch (error) {
       console.error('Error fetching branch users:', error);
     } finally {
@@ -78,11 +91,9 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
 
     setCreating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
       const { data, error } = await supabase.functions.invoke('create-admin-user', {
         body: {
+          action: 'create',
           email: form.email,
           password: form.password,
           username: form.username,
@@ -96,20 +107,44 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
       if (data?.error) throw new Error(data.error);
 
       const branchName = branches.find(b => b.id === form.branch_id)?.name || '';
-      setCreatedCredentials({
-        email: form.email,
-        password: form.password,
-        branch: branchName,
-      });
-
+      setCreatedCredentials({ email: form.email, password: form.password, branch: branchName });
       toast({ title: 'Success', description: `Branch admin account created for ${branchName}` });
       setForm({ username: '', email: '', password: '', branch_id: '' });
       fetchBranchUsers();
     } catch (error: any) {
-      console.error('Error creating branch user:', error);
       toast({ title: 'Error', description: error.message || 'Failed to create branch user', variant: 'destructive' });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDelete = async (userId: string, username: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-admin-user', {
+        body: { action: 'delete', user_id: userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Deleted', description: `Account "${username}" has been removed` });
+      fetchBranchUsers();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to delete user', variant: 'destructive' });
+    }
+  };
+
+  const handleResetPassword = async (userId: string, email: string) => {
+    const newPassword = `Reset${Math.random().toString(36).slice(2, 8)}!`;
+    try {
+      const { data, error } = await supabase.functions.invoke('create-admin-user', {
+        body: { action: 'reset-password', user_id: userId, new_password: newPassword },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResetPasswordUserId(userId);
+      setResetCredentials({ email, password: newPassword });
+      toast({ title: 'Password Reset', description: 'New password generated successfully' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to reset password', variant: 'destructive' });
     }
   };
 
@@ -119,7 +154,7 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  if (loading) return <div className="text-center py-8">Loading branch users...</div>;
+  if (loading) return <div className="text-center py-8 text-muted-foreground">Loading branch users...</div>;
 
   return (
     <div className="space-y-6">
@@ -164,14 +199,9 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.filter(b => !b.is_default).map(branch => (
+                    {branches.map(branch => (
                       <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                    {branches.filter(b => b.is_default).map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name} (HQ)
+                        {branch.name}{branch.is_default ? ' (HQ)' : ''}{branch.location ? ` — ${branch.location}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -205,47 +235,89 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
             </form>
 
             {createdCredentials && (
-              <div className="mt-4 p-4 bg-muted rounded-lg border border-border space-y-2">
-                <p className="font-medium text-sm">Account created! Share these credentials:</p>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Branch:</span>
-                  <span className="font-medium">{createdCredentials.branch}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Email:</span>
-                  <code className="bg-background px-2 py-0.5 rounded">{createdCredentials.email}</code>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(createdCredentials.email, 'email')}>
-                    {copiedField === 'email' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Password:</span>
-                  <code className="bg-background px-2 py-0.5 rounded">{createdCredentials.password}</code>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(createdCredentials.password, 'password')}>
-                    {copiedField === 'password' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  </Button>
-                </div>
-              </div>
+              <CredentialsCard
+                label="Account created! Share these credentials:"
+                branch={createdCredentials.branch}
+                email={createdCredentials.email}
+                password={createdCredentials.password}
+                copiedField={copiedField}
+                onCopy={copyToClipboard}
+              />
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Existing branch users list */}
       {branchUsers.length > 0 ? (
         <div className="grid gap-3">
           {branchUsers.map(user => (
             <Card key={user.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="font-medium">{user.username}</p>
-                    <p className="text-sm text-muted-foreground">Branch Admin</p>
+              <CardContent className="py-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5">
+                    <p className="font-semibold text-base">{user.username}</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>{user.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>{user.branches?.name || 'Unknown Branch'}</span>
+                      {user.branches?.location && (
+                        <span className="text-xs">({user.branches.location})</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>Created {new Date(user.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">Branch Admin</Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleResetPassword(user.id, user.email)}
+                      className="flex items-center gap-1.5"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Reset Password
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="flex items-center gap-1.5">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Branch Admin Account</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete the account for <strong>{user.username}</strong> ({user.email})?
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(user.id, user.username)}>
+                            Delete Account
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
-                <Badge variant="secondary">
-                  {user.branch?.name || 'Unknown Branch'}
-                </Badge>
+
+                {resetPasswordUserId === user.id && resetCredentials && (
+                  <CredentialsCard
+                    label="New password generated:"
+                    email={resetCredentials.email}
+                    password={resetCredentials.password}
+                    copiedField={copiedField}
+                    onCopy={copyToClipboard}
+                  />
+                )}
               </CardContent>
             </Card>
           ))}
@@ -258,5 +330,42 @@ const BranchUserManagement = ({ operatorId }: BranchUserManagementProps) => {
     </div>
   );
 };
+
+function CredentialsCard({
+  label, branch, email, password, copiedField, onCopy,
+}: {
+  label: string;
+  branch?: string;
+  email: string;
+  password: string;
+  copiedField: string | null;
+  onCopy: (text: string, field: string) => void;
+}) {
+  return (
+    <div className="mt-4 p-4 bg-muted rounded-lg border border-border space-y-2">
+      <p className="font-medium text-sm">{label}</p>
+      {branch && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Branch:</span>
+          <span className="font-medium">{branch}</span>
+        </div>
+      )}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Email:</span>
+        <code className="bg-background px-2 py-0.5 rounded">{email}</code>
+        <Button variant="ghost" size="sm" onClick={() => onCopy(email, 'email')}>
+          {copiedField === 'email' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+        </Button>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Password:</span>
+        <code className="bg-background px-2 py-0.5 rounded">{password}</code>
+        <Button variant="ghost" size="sm" onClick={() => onCopy(password, 'password')}>
+          {copiedField === 'password' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default BranchUserManagement;

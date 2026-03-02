@@ -6,13 +6,11 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Verify the requesting user is a super_admin
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -21,24 +19,17 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create admin client with service role
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Create regular client to verify the requesting user
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        }
-      }
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    // Get the requesting user
     const { data: { user: requestingUser }, error: userError } = await supabaseClient.auth.getUser()
     if (userError || !requestingUser) {
       return new Response(
@@ -47,7 +38,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if the requesting user is a super_admin or operator_admin
     const { data: requestingProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role, operator_id')
@@ -64,7 +54,6 @@ Deno.serve(async (req) => {
     const isSuperAdmin = requestingProfile.role === 'super_admin'
     const isOperatorAdmin = requestingProfile.role === 'operator_admin'
 
-    // operator_admin can only create driver accounts within their operator
     if (!isSuperAdmin && !isOperatorAdmin) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
@@ -72,10 +61,157 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Parse request body
-    const { email, password, username, role, operator_id, branch_id } = await req.json()
+    const body = await req.json()
+    const action = body.action || 'create'
 
-    // Validate required fields
+    // ==================== LIST BRANCH USERS ====================
+    if (action === 'list-branch-users') {
+      const { operator_id } = body
+      if (!operator_id) {
+        return new Response(
+          JSON.stringify({ error: 'operator_id is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (isOperatorAdmin && operator_id !== requestingProfile.operator_id) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot list users for a different operator' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Get profiles with branch_id set (branch-scoped admins)
+      const { data: profiles, error: fetchError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, username, role, branch_id, created_at, branches:branch_id (name, slug, location)')
+        .eq('operator_id', operator_id)
+        .eq('role', 'operator_admin')
+        .not('branch_id', 'is', null)
+
+      if (fetchError) {
+        return new Response(
+          JSON.stringify({ error: fetchError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Fetch emails from auth.users for these profile IDs
+      const userIds = (profiles || []).map(p => p.id)
+      const usersWithEmail = []
+
+      for (const profile of (profiles || [])) {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+        usersWithEmail.push({
+          ...profile,
+          email: authUser?.user?.email || 'N/A',
+        })
+      }
+
+      return new Response(
+        JSON.stringify({ users: usersWithEmail }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ==================== DELETE USER ====================
+    if (action === 'delete') {
+      const { user_id } = body
+      if (!user_id) {
+        return new Response(
+          JSON.stringify({ error: 'user_id is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify target user belongs to same operator
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('operator_id, role')
+        .eq('id', user_id)
+        .single()
+
+      if (!targetProfile) {
+        return new Response(
+          JSON.stringify({ error: 'User not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (isOperatorAdmin && targetProfile.operator_id !== requestingProfile.operator_id) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot delete users from a different operator' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id)
+      if (deleteError) {
+        return new Response(
+          JSON.stringify({ error: deleteError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log(`User ${user_id} deleted by ${requestingUser.id}`)
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ==================== RESET PASSWORD ====================
+    if (action === 'reset-password') {
+      const { user_id, new_password } = body
+      if (!user_id || !new_password) {
+        return new Response(
+          JSON.stringify({ error: 'user_id and new_password are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify target user belongs to same operator
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('operator_id')
+        .eq('id', user_id)
+        .single()
+
+      if (!targetProfile) {
+        return new Response(
+          JSON.stringify({ error: 'User not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (isOperatorAdmin && targetProfile.operator_id !== requestingProfile.operator_id) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot reset password for users from a different operator' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUser(user_id, {
+        password: new_password,
+      })
+
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: updateError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log(`Password reset for user ${user_id} by ${requestingUser.id}`)
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ==================== CREATE USER (default) ====================
+    const { email, password, username, role, operator_id, branch_id } = body
+
     if (!email || !password || !username || !role) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: email, password, username, role' }),
@@ -83,7 +219,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // For operator_admin role, operator_id is required
     if (role === 'operator_admin' && !operator_id) {
       return new Response(
         JSON.stringify({ error: 'operator_id is required for operator_admin role' }),
@@ -91,23 +226,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate role
     if (!['super_admin', 'operator_admin', 'driver'].includes(role)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid role. Must be super_admin, operator_admin, or driver' }),
+        JSON.stringify({ error: 'Invalid role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // operator_admin can create driver and operator_admin (branch-scoped) accounts
-    if (isOperatorAdmin && role !== 'driver' && role !== 'operator_admin') {
-      return new Response(
-        JSON.stringify({ error: 'Operator admins can only create driver or branch admin accounts' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // operator_admin cannot create super_admin accounts
     if (isOperatorAdmin && role === 'super_admin') {
       return new Response(
         JSON.stringify({ error: 'Operator admins cannot create super admin accounts' }),
@@ -115,15 +240,20 @@ Deno.serve(async (req) => {
       )
     }
 
-    // operator_admin must create drivers within their own operator
-    if (isOperatorAdmin && operator_id !== requestingProfile.operator_id) {
+    if (isOperatorAdmin && role !== 'driver' && role !== 'operator_admin') {
       return new Response(
-        JSON.stringify({ error: 'Cannot create drivers for a different operator' }),
+        JSON.stringify({ error: 'Operator admins can only create driver or branch admin accounts' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // For driver role, require operator_id and branch_id
+    if (isOperatorAdmin && operator_id !== requestingProfile.operator_id) {
+      return new Response(
+        JSON.stringify({ error: 'Cannot create users for a different operator' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (role === 'driver' && (!operator_id || !branch_id)) {
       return new Response(
         JSON.stringify({ error: 'operator_id and branch_id are required for driver role' }),
@@ -131,9 +261,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    // For operator_admin with branch_id, validate the branch belongs to the operator
-    if (role === 'operator_admin' && branch_id && isOperatorAdmin) {
-      // Verify branch belongs to the operator
+    // Validate branch belongs to operator
+    if (branch_id) {
       const { data: branchData, error: branchError } = await supabaseAdmin
         .from('branches')
         .select('id')
@@ -151,11 +280,10 @@ Deno.serve(async (req) => {
 
     console.log(`Creating admin user: ${email} with role: ${role}`)
 
-    // Create user with admin API (auto-confirms email)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm email so they can login immediately
+      email_confirm: true,
       user_metadata: { username }
     })
 
@@ -169,14 +297,13 @@ Deno.serve(async (req) => {
 
     if (!newUser.user) {
       return new Response(
-        JSON.stringify({ error: 'User creation failed - no user data returned' }),
+        JSON.stringify({ error: 'User creation failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     console.log(`User created with ID: ${newUser.user.id}`)
 
-    // Update the profile that was auto-created by the trigger
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({
@@ -189,17 +316,13 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating profile:', updateError)
-      // Clean up the orphaned auth user since profile setup failed
       try {
         await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
-        console.log(`Cleaned up orphaned auth user: ${newUser.user.id}`)
       } catch (cleanupError) {
         console.error('Failed to cleanup orphaned auth user:', cleanupError)
       }
       return new Response(
-        JSON.stringify({ 
-          error: `Profile update failed: ${updateError.message}. The auth account has been cleaned up. Please try again.`
-        }),
+        JSON.stringify({ error: `Profile update failed: ${updateError.message}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -207,12 +330,7 @@ Deno.serve(async (req) => {
     console.log(`Profile updated successfully for user: ${newUser.user.id}`)
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        user_id: newUser.user.id,
-        email: email,
-        role: role
-      }),
+      JSON.stringify({ success: true, user_id: newUser.user.id, email, role }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
