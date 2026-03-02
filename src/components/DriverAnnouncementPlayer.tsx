@@ -201,19 +201,13 @@ export default function DriverAnnouncementPlayer({
     setSingleGenLang(null);
   };
 
-  // Auto-start full playback on mount
-  useEffect(() => {
-    if (!settingsLoading && !typesLoading && operatorId) {
-      playAll();
-    }
-    return () => { abortRef.current = true; audioQueueRef.current.stop(); };
-  }, [settingsLoading, typesLoading]);
+  // No auto-play on mount -- user must click Play All or individual language buttons
 
   const isActive = fullPlayStatus !== 'idle';
   const typeName = typeConfig?.type_name || announcementTypeKey;
 
   return (
-    <Card className="border-2 border-primary/50 bg-primary/5 overflow-hidden">
+    <Card className="border-2 border-primary/50 bg-primary/5 overflow-hidden rounded-t-none">
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
@@ -231,15 +225,31 @@ export default function DriverAnnouncementPlayer({
             </Badge>
           )}
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => { stopAll(); onClose(); }}
-          className="shrink-0 h-8 px-3 text-xs"
-        >
-          <Square className="w-3 h-3 mr-1" />
-          Stop
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {!isActive && singlePlayingLang === null && singleGenLang === null && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={playAll}
+              disabled={settingsLoading || typesLoading}
+              className="h-8 px-3 text-xs"
+            >
+              <Play className="w-3 h-3 mr-1" />
+              Play All
+            </Button>
+          )}
+          {(isActive || singlePlayingLang !== null || singleGenLang !== null) && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={stopAll}
+              className="h-8 px-3 text-xs"
+            >
+              <Square className="w-3 h-3 mr-1" />
+              Stop
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Language rows */}

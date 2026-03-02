@@ -5,7 +5,7 @@ import DriverAnnouncementPlayer from "@/components/DriverAnnouncementPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Clock, MapPin, Loader2, Play } from "lucide-react";
+import { LogOut, Clock, MapPin, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 
@@ -14,9 +14,8 @@ const DriverDashboard = () => {
   const { departures, loading: departuresLoading } = useDriverDepartures(user?.id);
   const { types: announcementTypes } = useAnnouncementTypes(profile?.operator_id);
   
-  // Track which announcement is playing: { departureId_typeKey: true }
-  const [playingAnnouncements, setPlayingAnnouncements] = useState<Record<string, boolean>>({});
-
+  // Track which announcement panels are expanded: { departureId_typeKey: true }
+  const [expandedAnnouncements, setExpandedAnnouncements] = useState<Record<string, boolean>>({});
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -37,17 +36,10 @@ const DriverDashboard = () => {
 
   const getAnnouncementKey = (departureId: string, typeKey: string) => `${departureId}_${typeKey}`;
 
-  const startAnnouncement = (departureId: string, typeKey: string) => {
-    setPlayingAnnouncements(prev => ({
+  const toggleExpanded = (departureId: string, typeKey: string) => {
+    setExpandedAnnouncements(prev => ({
       ...prev,
-      [getAnnouncementKey(departureId, typeKey)]: true
-    }));
-  };
-
-  const stopAnnouncement = (departureId: string, typeKey: string) => {
-    setPlayingAnnouncements(prev => ({
-      ...prev,
-      [getAnnouncementKey(departureId, typeKey)]: false
+      [getAnnouncementKey(departureId, typeKey)]: !prev[getAnnouncementKey(departureId, typeKey)]
     }));
   };
 
@@ -133,36 +125,35 @@ const DriverDashboard = () => {
                 <div className="space-y-2">
                   {driverPlayableTypes.map(type => {
                     const key = getAnnouncementKey(departure.id, type.type_key);
-                    const isPlaying = playingAnnouncements[key];
+                    const isExpanded = expandedAnnouncements[key];
 
                     return (
-                      <div key={type.type_key}>
-                        {isPlaying ? (
+                      <div key={type.type_key} className="space-y-0">
+                        <button
+                          onClick={() => toggleExpanded(departure.id, type.type_key)}
+                          className={`w-full flex items-center justify-between rounded-lg px-3 py-3 text-primary-foreground ${getTypeColor(type.type_key)} active:scale-[0.98] transition-transform ${isExpanded ? 'rounded-b-none' : ''}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg shrink-0">{getTypeIcon(type.type_key)}</span>
+                            <span className="text-sm font-semibold truncate">{type.type_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {type.default_break_duration && (
+                              <span className="text-xs opacity-80">
+                                ({type.default_break_duration}min)
+                              </span>
+                            )}
+                            <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                          </div>
+                        </button>
+                        {isExpanded && (
                           <DriverAnnouncementPlayer
                             departure={departure}
                             operatorId={profile?.operator_id}
                             announcementTypeKey={type.type_key}
                             breakDurationOverride={type.default_break_duration ?? undefined}
-                            onClose={() => stopAnnouncement(departure.id, type.type_key)}
+                            onClose={() => toggleExpanded(departure.id, type.type_key)}
                           />
-                        ) : (
-                          <button
-                            onClick={() => startAnnouncement(departure.id, type.type_key)}
-                            className={`w-full flex items-center justify-between rounded-lg px-3 py-3 text-primary-foreground ${getTypeColor(type.type_key)} active:scale-[0.98] transition-transform`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-lg shrink-0">{getTypeIcon(type.type_key)}</span>
-                              <span className="text-sm font-semibold truncate">{type.type_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {type.default_break_duration && (
-                                <span className="text-xs opacity-80">
-                                  ({type.default_break_duration}min)
-                                </span>
-                              )}
-                              <Play className="w-5 h-5 fill-current" />
-                            </div>
-                          </button>
                         )}
                       </div>
                     );
