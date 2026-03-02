@@ -1,68 +1,38 @@
 
-### What I found (root cause)
 
-The account **was created in Auth**, but its profile was **not updated to role `driver`** at creation time.
+## Add Driver Login Instructions to Driver Cards
 
-Evidence from your project:
+### What
+Add a section to each driver card in the Drivers tab that displays:
+- The login URL for the driver dashboard (`/driver`)
+- The driver's email (username) for login
+- A note that the password was set at creation time
+- Copy buttons for easy sharing
 
-1. **Edge Function logs** for `create-admin-user` at `06:00:29Z`:
-   - `Creating admin user: sokha@kimseng.com with role: driver`
-   - `Error updating profile: invalid input value for enum user_role: "driver"`
+### Changes
 
-2. **Database state** for `sokha@kimseng.com` now:
-   - `profiles.role = operator_admin`
-   - `profiles.operator_id = null`
-   - `profiles.branch_id = null`
+**File: `src/components/DriverManagement.tsx`**
 
-3. Your Driver list query in `DriverManagement.tsx` filters by:
-   - `operator_id = current operator`
-   - `role = 'driver'`
+1. Add `Copy` icon import from lucide-react
+2. In each driver card (below the "Assigned Departures" section), add a new "Driver Access Info" section containing:
+   - Login URL: `{window.location.origin}/driver` with a copy button
+   - Username: the driver's email (fetched from auth or stored) with a copy button
+   - Password note: "Set at account creation" (since we can't display the actual password)
+3. Since profiles don't store email, we need to display the driver's `username` as login identifier. However, drivers log in with email. We'll need to fetch the driver's email from the `create-admin-user` response or store it.
 
-So this user is excluded from the list because it is not stored as a driver profile.
+**Problem**: The `profiles` table doesn't store email -- it's in `auth.users` which is not accessible client-side. Two options:
 
----
+- **Option A**: Show only the username and remind admins to note the email/password at creation time
+- **Option B**: Store email in a visible field or show it from creation response
 
-### Why this happened
+I'll go with a practical approach: display what we have (username) and the login URL, plus add a note reminding admins to save credentials at creation. I'll also update the creation success toast to include the email for easy reference.
 
-The account was created during a short timing window:
-- Driver creation was already calling `role: 'driver'`
-- But the enum migration adding `'driver'` to `public.user_role` was applied **afterward**
+### Technical Details
 
-So Auth user creation succeeded, but profile update failed and left a partially configured account.
+- Modify `DriverManagement.tsx`:
+  - Add a clipboard copy helper function
+  - Add an info box inside each driver card with the login URL and username
+  - Add copy-to-clipboard buttons using the `Copy` (or `ClipboardCopy`) icon
+  - After successful driver creation, show a more detailed success toast with the email and login URL
+- No database changes needed
 
----
-
-### Plan to fix this permanently
-
-#### 1) Repair the broken existing account data
-Create one migration to update the specific profile for `sokha@kimseng.com` to:
-- `role = 'driver'`
-- `operator_id = Kimseng operator`
-- `branch_id = Main Terminal`
-
-This will make the user appear in the list immediately.
-
-#### 2) Prevent silent partial-success in `create-admin-user`
-Update edge function behavior:
-- If profile update fails, return a clear **error** response (not success)
-- Include actionable details in payload
-- Optionally cleanup the newly created auth user to avoid orphaned accounts (safe-guarded)
-
-#### 3) Improve frontend error handling in `DriverManagement`
-Right now it treats the call as success unless `error` or `data.error`.
-Add handling for partial responses (e.g. `warning`/`profile_error`) so UI does not show a misleading success toast.
-
-#### 4) Validate end-to-end
-After fix:
-1. Create a driver
-2. Confirm driver appears instantly in Drivers tab
-3. Confirm profile row has role/operator/branch set correctly
-4. Login as that driver and verify redirect/dashboard access
-
----
-
-### Technical notes
-
-- No RLS policy change is required for this specific issue.
-- This is a **data consistency + error-handling** fix.
-- The account `sokha@kimseng.com` is recoverable; no need to delete/recreate if we patch profile row correctly.
