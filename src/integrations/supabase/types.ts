@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcement_types: {
+        Row: {
+          announcement_scripts: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          operator_id: string
+          repeat_count: number
+          type_key: string
+          type_name: string
+          updated_at: string
+          voice_settings: Json | null
+        }
+        Insert: {
+          announcement_scripts?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          operator_id: string
+          repeat_count?: number
+          type_key: string
+          type_name: string
+          updated_at?: string
+          voice_settings?: Json | null
+        }
+        Update: {
+          announcement_scripts?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          operator_id?: string
+          repeat_count?: number
+          type_key?: string
+          type_name?: string
+          updated_at?: string
+          voice_settings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_types_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements_cache: {
         Row: {
           audio_data: string

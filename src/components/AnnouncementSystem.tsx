@@ -6,6 +6,7 @@ import { Volume2, VolumeX, Loader2, CheckCircle, Clock, XCircle } from "lucide-r
 import { type Departure } from "@/hooks/useDepartures";
 import { supabase } from "@/integrations/supabase/client";
 import { useOperatorSettings } from "@/hooks/useOperatorSettings";
+import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { audioCache, AudioQueue, checkCacheStatus, generateScriptHash } from "@/utils/audioCache";
 import { useToast } from "@/components/ui/use-toast";
 import { 
@@ -20,6 +21,7 @@ interface AnnouncementSystemProps {
   operatorId?: string;
   onComplete?: () => void;
   manualTrigger?: boolean;
+  announcementTypeKey?: string; // defaults to 'departure'
 }
 
 interface AnnouncementScript {
@@ -32,7 +34,8 @@ export default function AnnouncementSystem({
   departure, 
   operatorId, 
   onComplete, 
-  manualTrigger = false 
+  manualTrigger = false,
+  announcementTypeKey = 'departure'
 }: AnnouncementSystemProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'multi' | 'english' | 'khmer' | 'chinese'>('multi');
@@ -47,12 +50,20 @@ export default function AnnouncementSystem({
   const { toast } = useToast();
   
   const { settings, loading: settingsLoading } = useOperatorSettings(operatorId);
+  const { types: announcementTypes, loading: typesLoading } = useAnnouncementTypes(operatorId); // eslint-disable-line
   
-  const script = settings?.announcement_scripts || {
+  // Find the matching announcement type config
+  const announcementTypeConfig = announcementTypes.find(t => t.type_key === announcementTypeKey);
+  
+  // Use type-specific scripts if available, fall back to operator_settings
+  const script = announcementTypeConfig?.announcement_scripts || settings?.announcement_scripts || {
     english: "Attention passengers, {fleet_type} service to {destination} will depart at {time}. Bus plate number {plate}. Please proceed to the boarding area.",
     khmer: "សូមអ្នកដំណើរ សេវាកម្ម {fleet_type} ទៅ {destination} នឹងចេញនៅម៉ោង {time}។ លេខផ្ទាំងឡាន {plate}។ សូមទៅកាន់តំបន់ឡើងឡាន។",
     chinese: "乘客请注意，{fleet_type}开往{destination}的班车将于{time}发车。车牌号{plate}。请前往候车区域。"
   };
+
+  // Use type-specific repeat count if available
+  const repeatCount = announcementTypeConfig?.repeat_count || settings?.announcement_repeat_count || 3;
 
   const generateAnnouncementText = (template: string, departure: Departure, language: 'english' | 'khmer' | 'chinese') => {
     let announcementText = template;
@@ -244,7 +255,7 @@ export default function AnnouncementSystem({
       setIsPlaying(true);
       setIsGenerating(true);
       
-      const repeatCount = settings.announcement_repeat_count || 3;
+      const announceRepeatCount = repeatCount;
       const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
       const englishText = generateAnnouncementText(script.english, departure, 'english');
       const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
@@ -278,7 +289,7 @@ export default function AnnouncementSystem({
         console.log("Using uploaded MP3 files in sequence: Khmer -> English -> Chinese");
         setIsGenerating(false);
         
-        for (let repeat = 1; repeat <= repeatCount; repeat++) {
+        for (let repeat = 1; repeat <= announceRepeatCount; repeat++) {
           setCurrentRepeat(repeat);
           
           // Play in sequence: Khmer, English, Chinese
@@ -294,7 +305,7 @@ export default function AnnouncementSystem({
             await playUploadedAudio(departure.chinese_audio_url!, 'chinese');
           }
           
-          if (repeat < repeatCount) {
+          if (repeat < announceRepeatCount) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
@@ -306,7 +317,7 @@ export default function AnnouncementSystem({
       console.log("Using sequential direct TTS: Khmer (native) -> English -> Chinese");
       setIsGenerating(false);
       
-      for (let repeat = 1; repeat <= repeatCount; repeat++) {
+      for (let repeat = 1; repeat <= announceRepeatCount; repeat++) {
         setCurrentRepeat(repeat);
         
         // Play Khmer first using native Google Cloud TTS (skip if empty)
@@ -351,7 +362,7 @@ export default function AnnouncementSystem({
         }
         
         // Pause between repeats (except after the last one)
-        if (repeat < repeatCount) {
+        if (repeat < announceRepeatCount) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
@@ -482,7 +493,7 @@ export default function AnnouncementSystem({
     }
   }, [manualTrigger]);
 
-  if (!departure || settingsLoading) return null;
+  if (!departure || settingsLoading || typesLoading) return null;
 
   return (
     <Card className="bg-accent/10 text-text-display p-6 border-2 border-accent animate-fade-in">
@@ -497,8 +508,8 @@ export default function AnnouncementSystem({
           )}
           <h3 className="text-lg font-semibold">
             {isGenerating ? 'Generating Audio...' : 
-             isPlaying ? `Announcing (${currentRepeat}/${settings?.announcement_repeat_count || 3})` : 
-             'Ready for Announcement'}
+             isPlaying ? `Announcing (${currentRepeat}/${repeatCount})` : 
+             `Ready for ${announcementTypeKey === 'departure' ? 'Departure' : announcementTypeConfig?.type_name || 'Announcement'}`}
           </h3>
         </div>
         <div className="flex gap-2">
@@ -604,7 +615,7 @@ export default function AnnouncementSystem({
               </span>
               {isPlaying && (
                 <span className="text-xs text-muted-foreground">
-                  Repeat {currentRepeat} of {settings?.announcement_repeat_count || 3}
+                  Repeat {currentRepeat} of {repeatCount}
                 </span>
               )}
             </div>
