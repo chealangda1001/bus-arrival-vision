@@ -1,104 +1,61 @@
 
 
-## Plan: Extensible Announcement Types System
+## Plan: Add Meal Break Announcement Type + Break Duration Config + Driver Playback Controls
 
-### Overview
-Add support for multiple announcement types (starting with "Departure" and "Break/Rest Stop") where each type has its own scripts and voice settings. Admins can create new types in the future and configure them independently.
+### 1. Database Migration
 
-### Database Changes
+**Seed a new `meal_break` announcement type** for all existing operators, with default 30-minute break duration embedded in scripts:
 
-**New table: `announcement_types`**
+- **English**: "Attention passengers. We are now stopping for a meal break of approximately 30 minutes. Please enjoy your meal at the restaurant area. The bus will depart again after the break. Please return to the bus on time. Thank you."
+- **Khmer**: "សូមអ្នកដំណើរទាំងអស់ យើងកំពុងឈប់សម្រាកញ៉ាំអាហារ ប្រមាណ 30 នាទី។ សូមអញ្ជើញរីករាយជាមួយអាហារ។ រថយន្តនឹងចេញដំណើរវិញបន្ទាប់ពីសម្រាក។ សូមត្រលប់មកវិញឱ្យទាន់ពេល។ សូមអរគុណ។"
+- **Chinese**: "各位旅客请注意，我们现在停车用餐，休息时间约30分钟。请大家到餐厅区域享用餐点。休息结束后巴士将继续出发，请按时返回车上。谢谢大家。"
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid (PK) | Auto-generated |
-| operator_id | uuid (FK) | References operators |
-| type_key | text | Unique slug like `departure`, `break_stop` |
-| type_name | text | Display name like "Departure Announcement" |
-| description | text | Optional description |
-| announcement_scripts | jsonb | `{english, khmer, chinese}` templates |
-| voice_settings | jsonb | Per-language voice config (same structure as current) |
-| repeat_count | integer | Default 3 |
-| is_active | boolean | Default true |
-| is_default | boolean | Whether this is a system-provided default type |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+Also **add a `default_break_duration` column** (integer, nullable, in minutes) to the `announcement_types` table so each type can store its own default break duration (e.g., 15 for short break, 30 for meal break).
 
-Unique constraint on `(operator_id, type_key)`.
+**Add a `driver_playable` column** (boolean, default false) to `announcement_types` to control which types drivers can play. Set `break_stop` and `meal_break` to `true`, `departure` stays `false`.
 
-**RLS Policies**: Same pattern as `operator_settings` - operator admins manage their own, super admins manage all.
+### 2. Update `AnnouncementTypeManager.tsx`
 
-**Seed data migration**: For every existing operator, insert two default announcement types:
-1. `departure` - copies scripts/voice_settings from existing `operator_settings`
-2. `break_stop` - new default break announcement scripts
+- Add a **"Default Break Duration"** input field (in minutes) for each announcement type, saved to the new `default_break_duration` column.
+- Add a **"Driver Playable"** toggle so admins can configure which announcement types appear in the driver's play menu.
+- Update the available placeholders section to also show `{break_duration}` for `meal_break` type.
 
-### Default Break/Rest Stop Scripts
+### 3. Update `useAnnouncementTypes.tsx`
 
-- **English**: "Attention passengers. We are now taking a short break of approximately {break_duration} minutes. Please feel free to use the restroom or grab a snack. The bus will depart again shortly. Please return to the bus on time. Thank you for your cooperation."
-- **Khmer**: "សូមអ្នកដំណើរទាំងអស់ យើងកំពុងឈប់សម្រាកបន្តិច ប្រមាណ {break_duration} នាទី សូមអញ្ជើញទៅបន្ទប់ទឹក ឬទិញអាហារតិចតួច រថយន្តនឹងចេញដំណើរវិញក្នុងពេលបន្តិចទៀត សូមត្រលប់មកវិញឱ្យទាន់ពេល សូមអរគុណ"
-- **Chinese**: "各位旅客请注意，我们现在短暂休息约 {break_duration} 分钟。请大家可以使用洗手间或购买小吃。巴士将很快再次出发，请按时返回车上。谢谢大家的配合。"
+- Add `default_break_duration` and `driver_playable` fields to the `AnnouncementType` interface.
 
-### Available Placeholders per Type
+### 4. Update `AdminPanel.tsx`
 
-Break/rest stop scripts use a subset of placeholders: `{break_duration}`, `{operator_name}`, `{destination}`.
-
-### Frontend Changes
-
-#### 1. New hook: `src/hooks/useAnnouncementTypes.tsx`
-- Fetches all announcement types for an operator
-- CRUD operations: create, update, delete types
-- Returns `{ types, loading, createType, updateType, deleteType }`
-
-#### 2. Update `OperatorSettings.tsx` - Add "Announcement Types" tab/section
-- Show a list/accordion of all announcement types for the operator
-- Each type expandable to show:
-  - Type name (editable)
-  - Scripts for English/Khmer/Chinese (editable with save buttons, same pattern as current)
-  - Voice settings per language (same UI as current voice config)
-  - Repeat count
-  - Active toggle
-- "Add New Announcement Type" button at the top to create custom types
-- The "departure" type is marked as default and cannot be deleted
-
-#### 3. Update `AnnouncementSystem.tsx`
-- Accept an optional `announcementType` prop (defaults to `'departure'`)
-- Fetch the matching announcement type config from the new table
-- Use that type's scripts and voice settings instead of the global `operator_settings` scripts
-- Falls back to `operator_settings` scripts if no matching type found (backward compatibility)
-
-#### 4. Update `AdminPanel.tsx` - Add Break Announcement Button
-- Add a "Break Announcement" play button on each departure row (or a standalone button)
-- When clicked, plays the `break_stop` announcement type for that departure context
-- This is the button drivers use during transit stops
-
-### Backward Compatibility
-- The existing `operator_settings.announcement_scripts` and `voice_settings` remain untouched
-- The migration seeds `announcement_types` from existing `operator_settings` data
-- `AnnouncementSystem` defaults to `departure` type, so all current behavior is preserved
-- The `operator_settings` page restructures scripts into the new types UI
+- Replace the hardcoded "Play Break Announcement" dropdown item with a **dynamic list** of driver-playable announcement types fetched via `useAnnouncementTypes`.
+- Each playable type gets its own dropdown menu item with appropriate icon.
+- Track active announcements per type+departure instead of just break announcements.
+- When playing a break-type announcement, use that type's `default_break_duration` to override the departure's `break_duration` placeholder if needed.
 
 ### Technical Details
 
-```text
-+-------------------+       +--------------------+
-| operator_settings |       | announcement_types |
-|-------------------|       |--------------------|
-| operator_id       |       | operator_id        |
-| voice_enabled     |       | type_key           |
-| auto_announcement |       | type_name          |
-| style_instructions|       | announcement_scripts|
-| temperature       |       | voice_settings     |
-| operator_name     |       | repeat_count       |
-+-------------------+       | is_active          |
-                            +--------------------+
+**Migration SQL:**
+```sql
+-- Add columns
+ALTER TABLE announcement_types 
+  ADD COLUMN default_break_duration integer,
+  ADD COLUMN driver_playable boolean NOT NULL DEFAULT false;
+
+-- Mark existing break_stop as driver-playable with 15min default
+UPDATE announcement_types SET driver_playable = true, default_break_duration = 15 WHERE type_key = 'break_stop';
+
+-- Seed meal_break for all operators
+INSERT INTO announcement_types (operator_id, type_key, type_name, description, default_break_duration, driver_playable, is_default, announcement_scripts)
+SELECT 
+  id, 'meal_break', 'Meal Break Announcement', 'Longer break for meal time during transit', 30, true, true,
+  '{"english": "...", "khmer": "...", "chinese": "..."}'::jsonb
+FROM operators
+WHERE NOT EXISTS (SELECT 1 FROM announcement_types WHERE announcement_types.operator_id = operators.id AND type_key = 'meal_break');
 ```
 
-Global settings (voice_enabled, auto_announcement, style_instructions, temperature, operator_name) stay in `operator_settings`. Per-type settings (scripts, voice config, repeat count) move to `announcement_types`.
-
-### Implementation Order
-1. Create `announcement_types` table with migration + seed existing operators
-2. Create `useAnnouncementTypes` hook
-3. Update `OperatorSettings.tsx` to manage announcement types
-4. Update `AnnouncementSystem.tsx` to accept and use announcement type
-5. Add break announcement button to `AdminPanel.tsx`
+**Files to modify:**
+- New migration SQL file
+- `src/hooks/useAnnouncementTypes.tsx` -- add new fields to interface
+- `src/components/AnnouncementTypeManager.tsx` -- add break duration input + driver playable toggle
+- `src/components/AdminPanel.tsx` -- dynamic driver-playable announcement buttons
+- `src/components/AnnouncementSystem.tsx` -- accept optional `breakDurationOverride` prop to substitute `{break_duration}` placeholder
 
