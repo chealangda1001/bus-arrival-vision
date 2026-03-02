@@ -1,61 +1,128 @@
 
 
-## Plan: Add Meal Break Announcement Type + Break Duration Config + Driver Playback Controls
+## Plan: Driver Accounts, Departure Assignment, and Mobile-Friendly Driver UI
 
-### 1. Database Migration
+### Overview
+Create a new `driver` role with a simplified, mobile-first UI where drivers see only their assigned departures and large play buttons for each announcement type. Operator admins can create driver accounts and assign departures to them.
 
-**Seed a new `meal_break` announcement type** for all existing operators, with default 30-minute break duration embedded in scripts:
+---
 
-- **English**: "Attention passengers. We are now stopping for a meal break of approximately 30 minutes. Please enjoy your meal at the restaurant area. The bus will depart again after the break. Please return to the bus on time. Thank you."
-- **Khmer**: "សូមអ្នកដំណើរទាំងអស់ យើងកំពុងឈប់សម្រាកញ៉ាំអាហារ ប្រមាណ 30 នាទី។ សូមអញ្ជើញរីករាយជាមួយអាហារ។ រថយន្តនឹងចេញដំណើរវិញបន្ទាប់ពីសម្រាក។ សូមត្រលប់មកវិញឱ្យទាន់ពេល។ សូមអរគុណ។"
-- **Chinese**: "各位旅客请注意，我们现在停车用餐，休息时间约30分钟。请大家到餐厅区域享用餐点。休息结束后巴士将继续出发，请按时返回车上。谢谢大家。"
+### 1. Database Changes
 
-Also **add a `default_break_duration` column** (integer, nullable, in minutes) to the `announcement_types` table so each type can store its own default break duration (e.g., 15 for short break, 30 for meal break).
-
-**Add a `driver_playable` column** (boolean, default false) to `announcement_types` to control which types drivers can play. Set `break_stop` and `meal_break` to `true`, `departure` stays `false`.
-
-### 2. Update `AnnouncementTypeManager.tsx`
-
-- Add a **"Default Break Duration"** input field (in minutes) for each announcement type, saved to the new `default_break_duration` column.
-- Add a **"Driver Playable"** toggle so admins can configure which announcement types appear in the driver's play menu.
-- Update the available placeholders section to also show `{break_duration}` for `meal_break` type.
-
-### 3. Update `useAnnouncementTypes.tsx`
-
-- Add `default_break_duration` and `driver_playable` fields to the `AnnouncementType` interface.
-
-### 4. Update `AdminPanel.tsx`
-
-- Replace the hardcoded "Play Break Announcement" dropdown item with a **dynamic list** of driver-playable announcement types fetched via `useAnnouncementTypes`.
-- Each playable type gets its own dropdown menu item with appropriate icon.
-- Track active announcements per type+departure instead of just break announcements.
-- When playing a break-type announcement, use that type's `default_break_duration` to override the departure's `break_duration` placeholder if needed.
-
-### Technical Details
-
-**Migration SQL:**
+**A. Add `driver` to the `user_role` enum**
 ```sql
--- Add columns
-ALTER TABLE announcement_types 
-  ADD COLUMN default_break_duration integer,
-  ADD COLUMN driver_playable boolean NOT NULL DEFAULT false;
-
--- Mark existing break_stop as driver-playable with 15min default
-UPDATE announcement_types SET driver_playable = true, default_break_duration = 15 WHERE type_key = 'break_stop';
-
--- Seed meal_break for all operators
-INSERT INTO announcement_types (operator_id, type_key, type_name, description, default_break_duration, driver_playable, is_default, announcement_scripts)
-SELECT 
-  id, 'meal_break', 'Meal Break Announcement', 'Longer break for meal time during transit', 30, true, true,
-  '{"english": "...", "khmer": "...", "chinese": "..."}'::jsonb
-FROM operators
-WHERE NOT EXISTS (SELECT 1 FROM announcement_types WHERE announcement_types.operator_id = operators.id AND type_key = 'meal_break');
+ALTER TYPE public.user_role ADD VALUE 'driver';
 ```
 
-**Files to modify:**
-- New migration SQL file
-- `src/hooks/useAnnouncementTypes.tsx` -- add new fields to interface
-- `src/components/AnnouncementTypeManager.tsx` -- add break duration input + driver playable toggle
-- `src/components/AdminPanel.tsx` -- dynamic driver-playable announcement buttons
-- `src/components/AnnouncementSystem.tsx` -- accept optional `breakDurationOverride` prop to substitute `{break_duration}` placeholder
+**B. Create `driver_departures` junction table**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | Auto-generated |
+| driver_id | uuid (FK) | References profiles.id |
+| departure_id | uuid (FK) | References departures.id |
+| created_at | timestamptz | Default now() |
+
+Unique constraint on `(driver_id, departure_id)`.
+
+RLS policies:
+- Drivers can SELECT their own assignments
+- Operator admins can manage assignments for their operator's departures
+- Super admins can manage all
+
+**C. Update RLS on `departures`**: Add a SELECT policy allowing drivers to view departures assigned to them via `driver_departures`.
+
+**D. Update RLS on `announcement_types`**: Drivers need to read active, driver-playable announcement types for their operator.
+
+---
+
+### 2. Update Edge Function: `create-admin-user`
+
+- Accept `driver` as a valid role (in addition to `super_admin` and `operator_admin`)
+- Allow **operator_admin** users (not just super_admin) to create driver accounts within their own operator
+- For driver role: require `operator_id` and `branch_id`
+
+---
+
+### 3. Admin UI: Driver Management (in `AdminPanel.tsx`)
+
+Add a new **"Drivers"** tab in the admin panel with:
+- **Create Driver Account** form: email, password, display name
+- **Driver list**: shows all driver accounts for this operator/branch
+- **Assign Departures**: for each driver, a multi-select to assign departures
+- **Delete/deactivate** driver accounts
+
+---
+
+### 4. New Page: Driver Dashboard (`src/pages/DriverDashboard.tsx`)
+
+**Route**: `/driver` (driver logs in via `/auth`, gets redirected here)
+
+**Design principles** (mobile-first, minimal):
+- Full-width cards, large text (text-xl/text-2xl), large buttons
+- No dropdowns, no hidden menus
+- Each assigned departure shown as a card with:
+  - Destination (large, bold)
+  - Departure time, plate number (medium text)
+  - One large, colored play button per driver-playable announcement type (e.g., "Short Break" in blue, "Meal Break" in orange)
+  - Stop button when playing
+- Simple header: driver name + logout button
+- No admin features, no edit capabilities
+
+**Visual layout per departure card:**
+```text
++------------------------------------------+
+|  Phnom Penh -> Siem Reap                 |
+|  08:30 AM  |  Plate: 2A-1234            |
+|                                          |
+|  [  Short Break (15min)  ]   <- big btn  |
+|  [  Meal Break  (30min)  ]   <- big btn  |
++------------------------------------------+
+```
+
+---
+
+### 5. Update Auth Flow (`AuthPage.tsx` + `useSupabaseAuth`)
+
+- Add redirect logic: if `profile.role === 'driver'`, navigate to `/driver`
+- The driver uses the same `/auth` login page
+
+---
+
+### 6. Update Routing (`App.tsx`)
+
+- Add route: `/driver` -> `DriverDashboard` component
+
+---
+
+### Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| Migration SQL | Create: enum update, `driver_departures` table, RLS policies |
+| `supabase/functions/create-admin-user/index.ts` | Edit: accept `driver` role, allow operator_admin callers |
+| `src/pages/DriverDashboard.tsx` | Create: mobile-first driver UI |
+| `src/hooks/useDriverDepartures.tsx` | Create: fetch driver's assigned departures |
+| `src/components/DriverManagement.tsx` | Create: admin UI for managing drivers and assignments |
+| `src/components/AdminPanel.tsx` | Edit: add "Drivers" tab |
+| `src/components/AuthPage.tsx` | Edit: add driver redirect |
+| `src/App.tsx` | Edit: add `/driver` route |
+
+---
+
+### Training Instructions (included in implementation)
+
+**For Operator Admins:**
+1. Go to Admin Panel > "Drivers" tab
+2. Click "Create Driver Account" -- enter driver's email, password, name
+3. Assign departures to the driver from the list
+4. Share the login URL with the driver: `https://bus-arrival-vision.lovable.app/auth`
+5. To configure which announcement types drivers can play, go to Settings > Announcement Types > toggle "Driver Playable"
+
+**For Drivers:**
+1. Open the link on your phone: `https://bus-arrival-vision.lovable.app/auth`
+2. Log in with the email and password given by your admin
+3. You will see your assigned departures with large play buttons
+4. Tap "Short Break" or "Meal Break" to play the announcement
+5. Tap the stop button to stop playback
 
