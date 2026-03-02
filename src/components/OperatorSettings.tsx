@@ -14,6 +14,7 @@ import { useOperatorSettings, type OperatorSettings, type VoiceSettings } from "
 import { Play, Trash2, Settings, Volume2, Mic, Brain, Languages, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AnnouncementSystem from "./AnnouncementSystem";
+import AnnouncementTypeManager from "./AnnouncementTypeManager";
 
 interface OperatorSettingsProps {
   operatorId: string;
@@ -541,6 +542,9 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
           </div>
         </CardContent>
       </Card>
+
+      {/* Announcement Types Manager */}
+      <AnnouncementTypeManager operatorId={operatorId} />
 
       {/* Test Announcement */}
       {testDeparture && (

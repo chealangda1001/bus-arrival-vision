@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical } from "lucide-react";
+import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVertical, Coffee } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
@@ -40,6 +40,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const [uploadingAudioForDeparture, setUploadingAudioForDeparture] = useState<string | null>(null);
   const [editingDeparture, setEditingDeparture] = useState<string | null>(null);
   const [manualAnnouncements, setManualAnnouncements] = useState<Record<string, boolean>>({});
+  const [breakAnnouncements, setBreakAnnouncements] = useState<Record<string, boolean>>({});
   const [selectedDepartures, setSelectedDepartures] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [newDeparture, setNewDeparture] = useState({
@@ -326,6 +327,13 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
   const triggerManualAnnouncement = (departureId: string) => {
     setManualAnnouncements(prev => ({
+      ...prev,
+      [departureId]: true
+    }));
+  };
+
+  const triggerBreakAnnouncement = (departureId: string) => {
+    setBreakAnnouncements(prev => ({
       ...prev,
       [departureId]: true
     }));
@@ -1177,7 +1185,12 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                               
                               <DropdownMenuItem onClick={() => triggerManualAnnouncement(departure.id)}>
                                 <Play className="w-4 h-4 mr-2" />
-                                Play announcement
+                                Play Departure
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem onClick={() => triggerBreakAnnouncement(departure.id)}>
+                                <Coffee className="w-4 h-4 mr-2" />
+                                Play Break Announcement
                               </DropdownMenuItem>
                               
                               <DropdownMenuItem onClick={() => setUploadingAudioForDeparture(departure.id)}>
@@ -1377,15 +1390,34 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                       </div>
                     )}
                     
-                    {/* Manual Announcement System */}
+                    {/* Manual Departure Announcement */}
                     {manualAnnouncements[departure.id] && (
                       <div className="mt-6 pt-4 border-t border-border">
                         <AnnouncementSystem
                           departure={departure}
                           operatorId={operatorId}
                           manualTrigger={true}
+                          announcementTypeKey="departure"
                           onComplete={() => {
                             setManualAnnouncements(prev => ({
+                              ...prev,
+                              [departure.id]: false
+                            }));
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Break Announcement */}
+                    {breakAnnouncements[departure.id] && (
+                      <div className="mt-6 pt-4 border-t border-border">
+                        <AnnouncementSystem
+                          departure={departure}
+                          operatorId={operatorId}
+                          manualTrigger={true}
+                          announcementTypeKey="break_stop"
+                          onComplete={() => {
+                            setBreakAnnouncements(prev => ({
                               ...prev,
                               [departure.id]: false
                             }));
