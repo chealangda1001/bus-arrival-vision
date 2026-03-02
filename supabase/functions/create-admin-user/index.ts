@@ -99,10 +99,18 @@ Deno.serve(async (req) => {
       )
     }
 
-    // operator_admin can only create driver accounts
-    if (isOperatorAdmin && role !== 'driver') {
+    // operator_admin can create driver and operator_admin (branch-scoped) accounts
+    if (isOperatorAdmin && role !== 'driver' && role !== 'operator_admin') {
       return new Response(
-        JSON.stringify({ error: 'Operator admins can only create driver accounts' }),
+        JSON.stringify({ error: 'Operator admins can only create driver or branch admin accounts' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // operator_admin cannot create super_admin accounts
+    if (isOperatorAdmin && role === 'super_admin') {
+      return new Response(
+        JSON.stringify({ error: 'Operator admins cannot create super admin accounts' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -121,6 +129,24 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'operator_id and branch_id are required for driver role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // For operator_admin with branch_id, validate the branch belongs to the operator
+    if (role === 'operator_admin' && branch_id && isOperatorAdmin) {
+      // Verify branch belongs to the operator
+      const { data: branchData, error: branchError } = await supabaseAdmin
+        .from('branches')
+        .select('id')
+        .eq('id', branch_id)
+        .eq('operator_id', operator_id)
+        .single()
+
+      if (branchError || !branchData) {
+        return new Response(
+          JSON.stringify({ error: 'Branch does not belong to this operator' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     console.log(`Creating admin user: ${email} with role: ${role}`)

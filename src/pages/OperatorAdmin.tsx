@@ -92,7 +92,7 @@ const OperatorAdmin = () => {
           </div>
         </div>
 
-        <AdminPanel branchId={activeBranchId} operatorId={activeOperatorId} />
+        <AdminPanel branchId={activeBranchId} operatorId={activeOperatorId} userBranchId={profile?.branch_id} />
       </div>
     </div>
   );
