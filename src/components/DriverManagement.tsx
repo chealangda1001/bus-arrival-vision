@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2, Copy, Check, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
@@ -26,11 +26,21 @@ interface DriverManagementProps {
 const DriverManagement = ({ operatorId, branchId }: DriverManagementProps) => {
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [driverAssignments, setDriverAssignments] = useState<Record<string, string[]>>({});
+  const [driverEmails, setDriverEmails] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newDriver, setNewDriver] = useState({ email: '', password: '', username: '' });
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const { departures } = useDepartures(branchId);
   const { toast } = useToast();
+
+  const loginUrl = `${window.location.origin}/driver`;
+
+  const copyToClipboard = async (text: string, fieldId: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   const fetchDrivers = async () => {
     if (!operatorId) return;
@@ -104,7 +114,14 @@ const DriverManagement = ({ operatorId, branchId }: DriverManagementProps) => {
         return;
       }
 
-      toast({ title: "Success", description: `Driver account created for ${newDriver.email}` });
+      toast({ 
+        title: "Driver Created", 
+        description: `${newDriver.username} (${newDriver.email}) — Login URL: ${loginUrl}`,
+      });
+      // Store email for display in driver card
+      if (data?.user_id) {
+        setDriverEmails(prev => ({ ...prev, [data.user_id]: newDriver.email }));
+      }
       setNewDriver({ email: '', password: '', username: '' });
       fetchDrivers();
     } catch (error: any) {
@@ -233,7 +250,35 @@ const DriverManagement = ({ operatorId, branchId }: DriverManagementProps) => {
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Driver Access Info */}
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+                  <Info className="w-4 h-4" />
+                  Driver Login Instructions
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Login URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <code className="bg-background px-2 py-0.5 rounded text-xs">{loginUrl}</code>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(loginUrl, `url-${driver.id}`)}>
+                      {copiedField === `url-${driver.id}` ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Username:</span>
+                  <div className="flex items-center gap-1.5">
+                    <code className="bg-background px-2 py-0.5 rounded text-xs">{driverEmails[driver.id] || driver.username}</code>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(driverEmails[driver.id] || driver.username, `user-${driver.id}`)}>
+                      {copiedField === `user-${driver.id}` ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground italic">Password was set at account creation. Share credentials securely with the driver.</p>
+              </div>
+
+              {/* Assigned Departures */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-muted-foreground">Assigned Departures:</Label>
                 {departures.length === 0 ? (
