@@ -1,57 +1,69 @@
 
 
-## Create Branch User Accounts for Operator Admins
+## Fix Branch User Display and Add Management Features
 
-### Overview
-Allow operator admins to create branch-scoped admin accounts (`operator_admin` role with a specific `branch_id`). These branch users can only manage departures for their assigned branch, and any departure they create is automatically assigned to that branch.
+### Problems Identified
+
+1. **Wrong branch assignment**: The "Siem Reap admin" user was assigned to "Chip Mong 6A" (the HQ branch) instead of "SR Psa Ler" (the actual Siem Reap branch). This is a data issue from branch selection during creation -- the fix below will make the branch dropdown clearer.
+
+2. **"Unknown Branch" in Branch Users list**: The join query in `BranchUserManagement` may fail due to RLS on the `branches` table, causing the branch name to not resolve.
+
+3. **Branch user sees other branches' departures**: Already handled by `activeBranchId = profile?.branch_id` in `OperatorAdmin.tsx`, but need to verify the departure filtering works correctly when `branchId` is passed to `useDepartures`.
+
+4. **Branch Users tab lacks details and management actions**: Currently only shows username and branch badge -- no email, no delete, no password reset.
 
 ### Changes
 
-#### 1. Update `create-admin-user` Edge Function
-- Add support for creating `operator_admin` accounts with a `branch_id` (currently only supports `driver` and `super_admin` roles with branch assignment)
-- Allow operator admins to create `operator_admin` accounts scoped to branches within their operator (currently they can only create `driver` accounts)
+#### 1. Update `src/components/BranchUserManagement.tsx` -- Enhanced UI with details and actions
 
-#### 2. New Component: `BranchUserManagement.tsx`
-- UI for operator admins to create branch-scoped admin accounts
-- Form fields: Display Name, Email, Password, Branch (dropdown)
-- Lists existing branch users with their assigned branch
-- Shows login credentials and URL after creation
-- Only visible to operator admins with no branch restriction (i.e., HQ-level admins)
+- **Show more user details**: Display email address (fetched from auth metadata or stored), branch name, and creation date
+- **Add Delete button**: Call the `create-admin-user` edge function or a new endpoint to delete the user (auth + profile cleanup)
+- **Add Reset Password button**: Use `supabase.functions.invoke` to call a function that resets the user's password via `supabase.auth.admin.updateUser`
+- **Better branch display**: Show branch name with location, and a colored badge for the role
+- **Confirmation dialogs**: Add confirm before delete
 
-#### 3. Update `AdminPanel.tsx`
-- Add a "Branch Users" tab (or integrate into existing "Drivers" tab as a section)
-- For branch-scoped users (`profile.branch_id` is set): hide the branch dropdown in the departure form and auto-assign their branch
-- The branch dropdown already exists for HQ admins -- just ensure branch-scoped admins don't see it
+The user list will show each branch user as a card with:
+- Username and email
+- Assigned branch name (with badge)
+- Created date
+- Actions: Reset Password (generates new password and shows it), Delete Account
 
-#### 4. Update `OperatorAdmin.tsx`
-- When a branch-scoped user logs in, they already get `activeBranchId = profile.branch_id` which filters departures correctly
-- Pass the user's branch restriction info to AdminPanel so it can hide/show appropriate UI
+#### 2. Update Edge Function `create-admin-user` -- Add delete and reset password actions
 
-#### 5. Update `AuthPage.tsx` redirect
-- Ensure branch-scoped `operator_admin` users redirect to their operator's admin page after login (already handled since they have `profile.operator.slug`)
+Add two new action modes to the existing edge function:
+- `action: 'delete'` -- Deletes both the auth user and profile using `supabase.auth.admin.deleteUser()`
+- `action: 'reset-password'` -- Updates the user's password using `supabase.auth.admin.updateUser()` and returns the new password
+
+This avoids creating separate edge functions while keeping the security model (only super_admin or same-operator operator_admin can perform these actions).
+
+#### 3. Fix branch user fetch query in `BranchUserManagement.tsx`
+
+- Fetch the user's email from the `auth.users` table via the edge function (since client can't access `auth.users` directly), or store email in the profiles table
+- Since we can't query `auth.users` from the client, we'll add an edge function call to fetch branch user details including email
+
+#### 4. Minor fix in `OperatorAdmin.tsx`
+
+- The `activeBranchId` logic is correct -- branch-scoped users already get filtered departures
+- Ensure the branch name displayed in the header comes from the profile's joined branch data (already working per code)
 
 ### Technical Details
 
-**Edge Function (`create-admin-user`):**
-- Remove the restriction that operator admins can only create `driver` role
-- Allow creating `operator_admin` with a `branch_id` within their own operator
-- Keep the restriction that operator admins cannot create `super_admin` accounts
+**Edge Function changes (`create-admin-user/index.ts`):**
+```
+Request body gets a new field: action ('create' | 'delete' | 'reset-password')
+- Default action is 'create' (backward compatible)
+- 'delete': requires user_id, validates permissions, calls admin.deleteUser()
+- 'reset-password': requires user_id + new_password, calls admin.updateUser()
+```
 
-**`BranchUserManagement.tsx`:**
-- Fetch all `operator_admin` profiles with non-null `branch_id` for the current operator
-- Create form with branch dropdown populated from `useBranches`
-- Call `create-admin-user` edge function with `role: 'operator_admin'`, `operator_id`, and `branch_id`
+**`BranchUserManagement.tsx` new features:**
+- Each user card shows: username, email (from edge function), branch name, creation date
+- Delete button with confirmation dialog
+- Reset Password button that generates a random password, calls the edge function, and displays the new credentials
+- After delete, refetch the user list
 
-**`AdminPanel.tsx` departure form:**
-- If `branchId` prop is set and matches a specific branch (user is branch-scoped), hide the branch dropdown and auto-assign
-- If `branchId` is from the default branch (HQ admin), show the dropdown as-is
-- Add a `userBranchId` prop to distinguish between "admin viewing a specific branch" vs "user restricted to a branch"
+**Data fix:** The "Siem Reap admin" user currently points to "Chip Mong 6A" branch. The UI improvement will make branch selection clearer to avoid this in the future, but the existing assignment needs manual correction (either via the UI delete + recreate, or a direct update).
 
-**RLS:** No changes needed -- existing policies already handle branch-scoped operator admins correctly via the `(p.branch_id IS NULL OR p.branch_id = departures.branch_id)` clause.
-
-### Files to Create/Modify
-1. **Create** `src/components/BranchUserManagement.tsx` -- Branch user CRUD UI
-2. **Modify** `supabase/functions/create-admin-user/index.ts` -- Allow operator admins to create branch-scoped operator_admin accounts
-3. **Modify** `src/components/AdminPanel.tsx` -- Add Branch Users tab, handle branch-scoped departure form
-4. **Modify** `src/pages/OperatorAdmin.tsx` -- Pass `userBranchId` to AdminPanel to distinguish branch-scoped vs HQ admin
-
+### Files to Modify
+1. `supabase/functions/create-admin-user/index.ts` -- Add delete and reset-password actions
+2. `src/components/BranchUserManagement.tsx` -- Enhanced UI with email, delete, reset password
