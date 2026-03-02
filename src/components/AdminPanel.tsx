@@ -11,9 +11,11 @@ import { Trash2, Upload, Truck, Volume2, Play, Clock, Edit, Eye, EyeOff, MoreVer
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDepartures, type Departure } from "@/hooks/useDepartures";
 import { useFleets } from "@/hooks/useFleets";
+import { useBranches } from "@/hooks/useBranches";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import FleetManagement from "./FleetManagement";
+import BranchManagement from "./BranchManagement";
 import OperatorSettings from "./OperatorSettings";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
@@ -31,6 +33,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   console.log('AdminPanel - received from useDepartures:', Object.keys(hookResult));
   const { departures, loading, addDeparture, updateDepartureStatus, updateDepartureVisibility, deleteDeparture, refetch } = hookResult;
   const { fleets } = useFleets(operatorId);
+  const { branches } = useBranches(operatorId);
   const { types: announcementTypes } = useAnnouncementTypes(operatorId);
   const { toast } = useToast();
   
@@ -55,6 +58,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
     fleet_id: "",
     trip_duration: "",
     break_duration: "",
+    branch_id: "",
     // Legacy fields for manual entry
     plate_number: "",
     fleet_type: "Bus" as "VIP Van" | "Bus" | "Sleeping Bus",
@@ -124,12 +128,21 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
   const handleAddDeparture = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newDeparture.destination || !newDeparture.departure_time || !branchId) {
+    if (!newDeparture.destination || !newDeparture.departure_time) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Resolve branch: user-selected > prop branchId > first/default branch
+    const defaultBranch = branches.find(b => b.is_default) || branches[0];
+    const resolvedBranchId = newDeparture.branch_id || branchId || defaultBranch?.id;
+
+    if (!resolvedBranchId) {
+      toast({ title: "Error", description: "No branch available. Please create a branch first.", variant: "destructive" });
       return;
     }
 
@@ -139,7 +152,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       : null;
 
     const departureData = {
-      branch_id: branchId,
+      branch_id: resolvedBranchId,
       destination: newDeparture.destination,
       leaving_from: newDeparture.leaving_from || undefined,
       departure_time: newDeparture.departure_time,
@@ -152,7 +165,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       fleet_image_url: selectedFleet?.fleet_image_url || newDeparture.fleet_image_url || undefined,
       trip_duration: newDeparture.trip_duration || undefined,
       break_duration: newDeparture.break_duration || undefined,
-      is_visible: true, // New departures are visible by default
+      is_visible: true,
     };
 
     await addDeparture(departureData);
@@ -167,6 +180,7 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
       fleet_id: "",
       trip_duration: "",
       break_duration: "",
+      branch_id: "",
       plate_number: "",
       fleet_type: "Bus",
       fleet_image_url: ""
@@ -583,8 +597,11 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="departures">Departures</TabsTrigger>
+          <TabsTrigger value="branches" className="flex items-center gap-2">
+            Branches
+          </TabsTrigger>
           <TabsTrigger value="drivers" className="flex items-center gap-2">
             Drivers
           </TabsTrigger>
@@ -660,6 +677,30 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Branch Selection */}
+              {branches.length > 1 && (
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="branch">Branch</Label>
+                  <Select
+                    value={newDeparture.branch_id}
+                    onValueChange={(value) =>
+                      setNewDeparture(prev => ({ ...prev, branch_id: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={`Default: ${branches.find(b => b.is_default)?.name || branches[0]?.name || 'HQ'}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}{branch.is_default ? ' (HQ)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="leaving-from">Leaving From</Label>
@@ -670,7 +711,6 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
                   placeholder="e.g., Phnom Penh Central Station"
                 />
               </div>
-
               {/* Manual entry fields - only show when no fleet selected or manual selected */}
               {(!newDeparture.fleet_id || newDeparture.fleet_id === "manual") && (
                 <>
@@ -1456,6 +1496,10 @@ const AdminPanel = ({ branchId, operatorId }: AdminPanelProps) => {
           </div>
         </div>
       </TabsContent>
+
+        <TabsContent value="branches">
+          <BranchManagement operatorId={operatorId} />
+        </TabsContent>
         
         <TabsContent value="drivers">
           <DriverManagement operatorId={operatorId} branchId={branchId} />
