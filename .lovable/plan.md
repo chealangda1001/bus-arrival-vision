@@ -1,46 +1,64 @@
 
 
-## Fix Driver Announcement Player Behavior
+## Fix: "Failed to add departure" for Operator Admins
 
-### Problem
-Currently:
-1. Clicking the announcement type button (e.g., "Break/Rest Stop") immediately starts auto-playing all voices
-2. Clicking "Stop" closes/collapses the language options panel entirely
-3. The user wants the type button to just toggle open/close the language panel, and voice only plays when explicitly hitting a Play button
+### Root Cause
 
-### Changes
+The RLS (Row-Level Security) **WITH CHECK** policy on the `departures` table has a bug. The current policy for operator admin inserts is:
 
-#### 1. `src/pages/DriverDashboard.tsx` -- Toggle expand/collapse instead of "play"
-- Rename state from `playingAnnouncements` to `expandedAnnouncements` (tracks which type panels are open)
-- Clicking the type button toggles the expanded state (show/hide language rows) without triggering any audio
-- Add a "Play All" button inside the expanded panel header to trigger the full sequence playback
-- Remove the `onClose` callback that collapses the panel when Stop is hit
-
-#### 2. `src/components/DriverAnnouncementPlayer.tsx` -- Remove auto-play, keep panel on stop
-- Remove the `useEffect` that auto-starts `playAll()` on mount (lines 205-210)
-- Add a "Play All" button in the header that triggers `playAll()` manually
-- Change the "Stop" button to only stop audio playback without calling `onClose()` -- the panel stays visible
-- Keep individual per-language play buttons as they are (single play, no repeat)
-- The `onClose` prop is no longer called from Stop -- it will only be triggered from the parent when the type button is clicked again to collapse
-
-### UI Behavior Summary
-
-```text
-Click "Break/Rest Stop" --> expands language panel (no audio plays)
-Click "Play All" button --> plays all languages with repeats
-Click "Stop" --> stops audio, panel stays open
-Click "Break/Rest Stop" again --> collapses language panel
+```sql
+WITH CHECK: EXISTS (
+  SELECT 1 FROM profiles p
+  JOIN branches b ON b.operator_id = p.operator_id
+  WHERE p.id = auth.uid()
+    AND p.role = 'operator_admin'
+    AND b.id = p.branch_id              -- BUG: fails when branch_id is NULL
+    AND (p.branch_id IS NULL OR p.branch_id = p.branch_id)
+)
 ```
 
-### Technical Details
+When an operator admin has `branch_id = NULL` (meaning "All Branches" access), the condition `b.id = p.branch_id` always evaluates to NULL, causing every INSERT to be denied.
 
-**`DriverDashboard.tsx`**:
-- State: `expandedAnnouncements` (Record of string to boolean) replaces `playingAnnouncements`
-- Type button click: toggles `expandedAnnouncements[key]`
-- Always render `DriverAnnouncementPlayer` when expanded (not conditional on playing)
+### Fix
 
-**`DriverAnnouncementPlayer.tsx`**:
-- Remove auto-play `useEffect`
-- Header shows: type name + "Play All" button (plays full sequence) + "Stop" button (only visible during playback)
-- Stop button calls `stopAll()` only -- does NOT call `onClose()`
-- `onClose` prop can be removed or kept unused
+Run a database migration to replace the WITH CHECK expression with correct logic that mirrors the USING expression:
+
+```sql
+-- Allow insert if the departure's branch belongs to the admin's operator,
+-- AND either the admin has no branch restriction (NULL = all branches)
+-- or the admin's branch matches the departure's branch
+DROP POLICY IF EXISTS "Operator admins can manage own departures" ON departures;
+
+CREATE POLICY "Operator admins can manage own departures"
+ON departures
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles p
+    JOIN branches b ON b.operator_id = p.operator_id
+    WHERE p.id = auth.uid()
+      AND p.role = 'operator_admin'
+      AND b.id = departures.branch_id
+      AND (p.branch_id IS NULL OR p.branch_id = departures.branch_id)
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles p
+    JOIN branches b ON b.operator_id = p.operator_id
+    WHERE p.id = auth.uid()
+      AND p.role = 'operator_admin'
+      AND b.id = departures.branch_id
+      AND (p.branch_id IS NULL OR p.branch_id = departures.branch_id)
+  )
+);
+```
+
+This ensures:
+- Admins with a specific branch can only add departures to their branch
+- Admins with `branch_id = NULL` ("All Branches") can add departures to any branch belonging to their operator
+
+### Files Changed
+- **Database migration only** -- no frontend code changes needed
+
