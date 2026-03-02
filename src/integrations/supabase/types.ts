@@ -715,7 +715,7 @@ export type Database = {
     }
     Enums: {
       fleet_type: "VIP Van" | "Bus" | "Sleeping Bus"
-      user_role: "super_admin" | "operator_admin"
+      user_role: "super_admin" | "operator_admin" | "driver"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -844,7 +844,7 @@ export const Constants = {
   public: {
     Enums: {
       fleet_type: ["VIP Van", "Bus", "Sleeping Bus"],
-      user_role: ["super_admin", "operator_admin"],
+      user_role: ["super_admin", "operator_admin", "driver"],
     },
   },
 } as const
