@@ -163,16 +163,18 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating profile:', updateError)
-      // Even if profile update fails, the user was created
-      // Return success with a warning
+      // Clean up the orphaned auth user since profile setup failed
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
+        console.log(`Cleaned up orphaned auth user: ${newUser.user.id}`)
+      } catch (cleanupError) {
+        console.error('Failed to cleanup orphaned auth user:', cleanupError)
+      }
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          user_id: newUser.user.id,
-          warning: 'User created but profile update failed. Please update the profile manually.',
-          profile_error: updateError.message
+          error: `Profile update failed: ${updateError.message}. The auth account has been cleaned up. Please try again.`
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
