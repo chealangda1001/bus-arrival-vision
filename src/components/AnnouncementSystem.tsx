@@ -500,23 +500,23 @@ export default function AnnouncementSystem({
   if (!departure || settingsLoading || typesLoading) return null;
 
   return (
-    <Card className="bg-accent/10 text-text-display p-6 border-2 border-accent animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+    <Card className="bg-accent/10 text-text-display p-4 sm:p-6 border-2 border-accent animate-fade-in">
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex items-center gap-2">
           {isGenerating ? (
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <Loader2 className="w-5 h-5 shrink-0 animate-spin text-primary" />
           ) : isPlaying ? (
-            <Volume2 className="w-6 h-6 animate-pulse text-primary" />
+            <Volume2 className="w-5 h-5 shrink-0 animate-pulse text-primary" />
           ) : (
-            <VolumeX className="w-6 h-6 text-muted-foreground" />
+            <VolumeX className="w-5 h-5 shrink-0 text-muted-foreground" />
           )}
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-sm sm:text-lg font-semibold leading-tight">
             {isGenerating ? 'Generating Audio...' : 
              isPlaying ? `Announcing (${currentRepeat}/${repeatCount})` : 
              `Ready for ${announcementTypeKey === 'departure' ? 'Departure' : announcementTypeConfig?.type_name || 'Announcement'}`}
           </h3>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isPlaying && (
             <Button
               variant="destructive"
@@ -557,7 +557,7 @@ export default function AnnouncementSystem({
       
       <div className="space-y-3">
         {/* Audio Source Indicators with Cache Status */}
-        <div className="flex justify-center gap-3 mb-4">
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-4">
           {(['khmer', 'english', 'chinese'] as const).map((lang) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
