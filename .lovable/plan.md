@@ -1,71 +1,46 @@
 
 
-## Fix Driver Mobile UI and Add Per-Language Playback
+## Fix Driver Announcement Player Behavior
 
 ### Problem
-The driver announcement buttons overflow on mobile screens. The emoji icons and text don't fit properly, and the current "playing" state shows the full AnnouncementSystem card (designed for admin, not mobile drivers).
+Currently:
+1. Clicking the announcement type button (e.g., "Break/Rest Stop") immediately starts auto-playing all voices
+2. Clicking "Stop" closes/collapses the language options panel entirely
+3. The user wants the type button to just toggle open/close the language panel, and voice only plays when explicitly hitting a Play button
 
 ### Changes
 
-#### 1. Fix the driver play buttons in `DriverDashboard.tsx`
-- Replace the current large buttons with a mobile-friendly layout:
-  - Left side: emoji icon + type name (with `truncate` / `overflow-hidden` to prevent overflow)
-  - Right side: duration badge + Play icon (triangle) button
-- Reduce font sizes and ensure `overflow-hidden` on the button container
-- When playing, instead of rendering the full `AnnouncementSystem` component (which has admin controls like Clear Cache, Regenerate), render a simplified driver-specific playing UI
+#### 1. `src/pages/DriverDashboard.tsx` -- Toggle expand/collapse instead of "play"
+- Rename state from `playingAnnouncements` to `expandedAnnouncements` (tracks which type panels are open)
+- Clicking the type button toggles the expanded state (show/hide language rows) without triggering any audio
+- Add a "Play All" button inside the expanded panel header to trigger the full sequence playback
+- Remove the `onClose` callback that collapses the panel when Stop is hit
 
-#### 2. Add per-language playback UI when announcement is active
-- When a driver taps the play button, show a card with:
-  - A stop button at the top
-  - Current playback status (repeat X of Y, generating, etc.)
-  - Three language rows (Khmer, English, Chinese) each with a small play button
-  - Tapping a language play button plays ONLY that language, ONE time, no repeat, no auto-next
-- This requires adding a new prop or mode to `AnnouncementSystem` or building a lightweight driver-specific player
+#### 2. `src/components/DriverAnnouncementPlayer.tsx` -- Remove auto-play, keep panel on stop
+- Remove the `useEffect` that auto-starts `playAll()` on mount (lines 205-210)
+- Add a "Play All" button in the header that triggers `playAll()` manually
+- Change the "Stop" button to only stop audio playback without calling `onClose()` -- the panel stays visible
+- Keep individual per-language play buttons as they are (single play, no repeat)
+- The `onClose` prop is no longer called from Stop -- it will only be triggered from the parent when the type button is clicked again to collapse
 
-#### 3. Build a `DriverAnnouncementPlayer` component (new file)
-Rather than overloading `AnnouncementSystem` with driver-specific logic, create a new lightweight component `src/components/DriverAnnouncementPlayer.tsx` that:
-- Reuses the same TTS generation functions (extracted or called via supabase functions directly)
-- Has a "full play" mode (all languages, with repeats) triggered by the main play button
-- Has individual language play buttons that play a single language once
-- Shows a collapsible/expandable view per language
-- Is mobile-optimized with no admin controls
+### UI Behavior Summary
+
+```text
+Click "Break/Rest Stop" --> expands language panel (no audio plays)
+Click "Play All" button --> plays all languages with repeats
+Click "Stop" --> stops audio, panel stays open
+Click "Break/Rest Stop" again --> collapses language panel
+```
 
 ### Technical Details
 
-**New file: `src/components/DriverAnnouncementPlayer.tsx`**
-- Props: `departure`, `operatorId`, `announcementTypeKey`, `breakDurationOverride`, `onClose`
-- Internally manages audio generation and playback using the same `supabase.functions.invoke` calls and `AudioQueue` from `audioCache.ts`
-- Two playback modes:
-  - `playAll()`: plays Khmer -> English -> Chinese with repeat count from announcement type config
-  - `playSingleLanguage(lang)`: plays just one language, once, no repeat
-- UI: compact card with stop button, language rows with individual play buttons
+**`DriverDashboard.tsx`**:
+- State: `expandedAnnouncements` (Record of string to boolean) replaces `playingAnnouncements`
+- Type button click: toggles `expandedAnnouncements[key]`
+- Always render `DriverAnnouncementPlayer` when expanded (not conditional on playing)
 
-**Modified file: `src/pages/DriverDashboard.tsx`**
-- Fix button layout: use `flex items-center justify-between` with `min-w-0` and `truncate` on the text
-- Move play icon (lucide `Play`) to right side next to duration
-- When `isPlaying`, render `DriverAnnouncementPlayer` instead of `AnnouncementSystem`
-- Remove dependency on `AnnouncementSystem` import
-
-**File: `src/components/AnnouncementSystem.tsx`**
-- No changes needed (admin UI stays as-is)
-
-### UI Layout for Driver Buttons (not playing)
-
-```text
-+------------------------------------------+
-| [emoji] Type Name        (15min) [> Play] |
-+------------------------------------------+
-```
-
-### UI Layout when playing (expanded)
-
-```text
-+------------------------------------------+
-| [Stop]  Break/Rest Stop   Playing 1/3    |
-|------------------------------------------|
-| [KH] Khmer announcement...    [> Play]   |
-| [EN] English announcement...  [> Play]   |
-| [CN] Chinese announcement...  [> Play]   |
-+------------------------------------------+
-```
-
+**`DriverAnnouncementPlayer.tsx`**:
+- Remove auto-play `useEffect`
+- Header shows: type name + "Play All" button (plays full sequence) + "Stop" button (only visible during playback)
+- Stop button calls `stopAll()` only -- does NOT call `onClose()`
+- `onClose` prop can be removed or kept unused
