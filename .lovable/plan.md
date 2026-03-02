@@ -1,58 +1,68 @@
 
+### What I found (root cause)
 
-## Plan: Fix Infinite Recursion in Departures RLS Policies
+The account **was created in Auth**, but its profile was **not updated to role `driver`** at creation time.
 
-### Problem
-The `driver_departures` table has a policy "Operator admins can manage driver assignments" that JOINs `profiles -> branches -> departures`. When querying `departures`, Postgres checks `driver_departures` policies (via the "Drivers can view assigned departures" policy on departures), which in turn tries to query `departures` again -- infinite recursion.
+Evidence from your project:
 
-### Solution
+1. **Edge Function logs** for `create-admin-user` at `06:00:29Z`:
+   - `Creating admin user: sokha@kimseng.com with role: driver`
+   - `Error updating profile: invalid input value for enum user_role: "driver"`
 
-Create a new migration that:
+2. **Database state** for `sokha@kimseng.com` now:
+   - `profiles.role = operator_admin`
+   - `profiles.operator_id = null`
+   - `profiles.branch_id = null`
 
-1. Drops the problematic policy on `driver_departures`
-2. Recreates it using security definer functions instead of joining to `departures`
+3. Your Driver list query in `DriverManagement.tsx` filters by:
+   - `operator_id = current operator`
+   - `role = 'driver'`
 
-The new policy will use `get_current_user_role()` and `get_current_user_operator_id()` to check if the caller is an operator_admin, and then verify the departure belongs to the operator's branches using a new security definer function.
+So this user is excluded from the list because it is not stored as a driver profile.
 
-### Migration SQL
+---
 
-```sql
--- Create a helper function to check if a departure belongs to an operator
-CREATE OR REPLACE FUNCTION public.departure_belongs_to_operator(p_departure_id uuid, p_operator_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM departures d
-    JOIN branches b ON b.id = d.branch_id
-    WHERE d.id = p_departure_id AND b.operator_id = p_operator_id
-  );
-$$;
+### Why this happened
 
--- Fix the recursive policy on driver_departures
-DROP POLICY IF EXISTS "Operator admins can manage driver assignments" ON public.driver_departures;
+The account was created during a short timing window:
+- Driver creation was already calling `role: 'driver'`
+- But the enum migration adding `'driver'` to `public.user_role` was applied **afterward**
 
-CREATE POLICY "Operator admins can manage driver assignments"
-ON public.driver_departures
-FOR ALL
-TO authenticated
-USING (
-  public.get_current_user_role() = 'operator_admin'
-  AND public.departure_belongs_to_operator(departure_id, public.get_current_user_operator_id())
-)
-WITH CHECK (
-  public.get_current_user_role() = 'operator_admin'
-  AND public.departure_belongs_to_operator(departure_id, public.get_current_user_operator_id())
-);
-```
+So Auth user creation succeeded, but profile update failed and left a partially configured account.
 
-### Files
-- **New migration SQL file** -- contains the fix above
-- No frontend code changes needed
+---
 
-### What this fixes
-After applying the migration, querying `departures` will no longer trigger circular policy evaluation. Both super_admin and operator_admin users will be able to fetch departures without the 500 error.
+### Plan to fix this permanently
 
+#### 1) Repair the broken existing account data
+Create one migration to update the specific profile for `sokha@kimseng.com` to:
+- `role = 'driver'`
+- `operator_id = Kimseng operator`
+- `branch_id = Main Terminal`
+
+This will make the user appear in the list immediately.
+
+#### 2) Prevent silent partial-success in `create-admin-user`
+Update edge function behavior:
+- If profile update fails, return a clear **error** response (not success)
+- Include actionable details in payload
+- Optionally cleanup the newly created auth user to avoid orphaned accounts (safe-guarded)
+
+#### 3) Improve frontend error handling in `DriverManagement`
+Right now it treats the call as success unless `error` or `data.error`.
+Add handling for partial responses (e.g. `warning`/`profile_error`) so UI does not show a misleading success toast.
+
+#### 4) Validate end-to-end
+After fix:
+1. Create a driver
+2. Confirm driver appears instantly in Drivers tab
+3. Confirm profile row has role/operator/branch set correctly
+4. Login as that driver and verify redirect/dashboard access
+
+---
+
+### Technical notes
+
+- No RLS policy change is required for this specific issue.
+- This is a **data consistency + error-handling** fix.
+- The account `sokha@kimseng.com` is recoverable; no need to delete/recreate if we patch profile row correctly.
