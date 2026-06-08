@@ -318,8 +318,23 @@ serve(async (req) => {
     const data = encoder.encode(JSON.stringify(keyData));
     const base64 = btoa(String.fromCharCode(...Array.from(data)));
     const cacheKey = `khmer_direct_${base64.replace(/[+/=]/g, '')}`;
+    const storagePath = `${operatorId || 'shared'}/directkhmer_${await hashKey(cacheKey)}.mp3`;
 
-    // Generate Khmer TTS using native Google Cloud TTS
+    // 1) Storage hit? Serve existing file directly.
+    const cachedUrl = await findCachedAudioUrl(storagePath);
+    if (cachedUrl) {
+      console.log('✅ Serving cached direct Khmer audio from storage:', storagePath);
+      return new Response(JSON.stringify({
+        audioUrl: cachedUrl,
+        cached: true,
+        cacheKey,
+        language: 'km-KH',
+        voice: 'Zephyr',
+        method: 'direct_khmer_romanized_tts'
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // 2) Generate Khmer TTS using native Google Cloud TTS
     const audioData = await generateKhmerTTS({
       text,
       operatorId,
@@ -330,8 +345,12 @@ serve(async (req) => {
 
     console.log('Successfully generated direct Khmer TTS');
 
+    const audioUrl = await uploadAudioToStorage(storagePath, audioData, 'audio/mpeg');
+
     return new Response(JSON.stringify({ 
-      audioContent: audioData,
+      audioUrl,
+      ...(audioUrl ? {} : { audioContent: audioData }),
+      cached: false,
       cacheKey,
       language: 'km-KH',
       voice: 'Zephyr', // User requested Zephyr voice for Khmer
