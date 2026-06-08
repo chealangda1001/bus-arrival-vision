@@ -449,8 +449,22 @@ serve(async (req) => {
     const data = encoder.encode(JSON.stringify(keyData));
     const base64 = btoa(String.fromCharCode(...Array.from(data)));
     const cacheKey = base64.replace(/[+/=]/g, '');
+    const storagePath = `${operatorId || 'shared'}/multi_${await hashKey(cacheKey)}.mp3`;
 
-    // Generate multi-speaker audio using Google Cloud TTS
+    // 1) Storage hit? Serve existing file — no Google TTS call, no base64 over the wire.
+    const cachedUrl = await findCachedAudioUrl(storagePath);
+    if (cachedUrl) {
+      console.log('✅ Serving cached multi-speaker audio from storage:', storagePath);
+      return new Response(JSON.stringify({
+        audioUrl: cachedUrl,
+        cached: true,
+        cacheKey,
+        segments: segments.length,
+        voices: [...new Set(segments.map(s => s.voice))]
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // 2) Generate multi-speaker audio using Google Cloud TTS
     const audioData = await generateMultiSpeakerAudio(segments, {
       script,
       operatorId,
@@ -462,8 +476,12 @@ serve(async (req) => {
 
     console.log('Successfully generated multi-speaker audio');
 
+    const audioUrl = await uploadAudioToStorage(storagePath, audioData, 'audio/mpeg');
+
     return new Response(JSON.stringify({ 
-      audioContent: audioData,
+      audioUrl,
+      ...(audioUrl ? {} : { audioContent: audioData }),
+      cached: false,
       cacheKey,
       segments: segments.length,
       voices: [...new Set(segments.map(s => s.voice))]
