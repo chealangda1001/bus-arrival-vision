@@ -408,7 +408,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
       const columnName = `${language}_audio_url`;
       const { error: updateError } = await supabase
         .from('departures')
-        .update({ [columnName]: publicUrl })
+        .update({ [columnName]: publicUrl } as never)
         .eq('id', departureId);
 
       if (updateError) {
@@ -463,7 +463,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
       const columnName = `${language}_audio_url`;
       const { error: updateError } = await supabase
         .from('departures')
-        .update({ [columnName]: null })
+        .update({ [columnName]: null } as never)
         .eq('id', departureId);
 
       if (updateError) {

@@ -179,13 +179,14 @@ export default function AnnouncementSystem({
         throw error;
       }
 
-      if (data?.audioContent) {
-        // Cache the generated audio (expires in 24 hours)
-        await audioCache.set(cacheKey, data.audioContent, 24);
+      // Prefer the CDN/storage URL (small payload, browser+CDN cached). Fall back to base64 if upload failed.
+      const audioValue = data?.audioUrl || data?.audioContent;
+      if (audioValue) {
+        // Cache the URL (or base64 fallback) — URLs are tiny so this stays cheap.
+        await audioCache.set(cacheKey, audioValue, 24);
         setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
-        console.log('💾 Cached new Khmer audio');
-        return data.audioContent;
+        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
+        return audioValue;
       }
 
       throw new Error("No audio content received from Gemini Khmer TTS");
@@ -238,13 +239,13 @@ export default function AnnouncementSystem({
       });
 
       if (error) throw error;
-      if (!data?.audioContent) throw new Error(`No audio content received for ${language}`);
+      const audioValue = data?.audioUrl || data?.audioContent;
+      if (!audioValue) throw new Error(`No audio received for ${language}`);
 
-      await audioCache.set(cacheKey, data.audioContent, 24);
+      await audioCache.set(cacheKey, audioValue, 24);
       setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
-      console.log(`✅ Generated ${language} TTS successfully`);
-      console.log(`💾 Cached new ${language} audio`);
-      return data.audioContent;
+      console.log(`✅ Generated ${language} TTS successfully`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
+      return audioValue;
     } catch (error) {
       console.error(`Error in generateDirectTTS for ${language}:`, error);
       setCacheStatus(prev => ({ ...prev, [language]: 'missing' }));
@@ -274,14 +275,8 @@ export default function AnnouncementSystem({
       // Play in sequence: Khmer, English, Chinese
       const playUploadedAudio = async (audioUrl: string, language: 'khmer' | 'english' | 'chinese') => {
         setCurrentLanguage(language);
-        const response = await fetch(audioUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte), ''
-          )
-        );
-        await audioQueueRef.current.addToQueue(base64);
+        // Play the uploaded file straight from its URL (browser caches it; no base64 round-trip).
+        await audioQueueRef.current.addUrlToQueue(audioUrl);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }

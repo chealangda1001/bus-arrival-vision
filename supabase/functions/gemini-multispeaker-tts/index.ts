@@ -1,10 +1,58 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// ---- Shared TTS storage helpers (reduce egress by serving audio from a public bucket) ----
+const TTS_BUCKET = 'tts-audio';
+
+async function hashKey(key: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function ttsPublicUrl(path: string): string {
+  const url = Deno.env.get('SUPABASE_URL')!;
+  return `${url}/storage/v1/object/public/${TTS_BUCKET}/${path}`;
+}
+
+async function findCachedAudioUrl(path: string): Promise<string | null> {
+  try {
+    const res = await fetch(ttsPublicUrl(path), { method: 'HEAD' });
+    if (res.ok) return ttsPublicUrl(path);
+  } catch (_) { /* treat as miss */ }
+  return null;
+}
+
+async function uploadAudioToStorage(path: string, base64: string, contentType: string): Promise<string | null> {
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+    await supabase.storage.createBucket(TTS_BUCKET, { public: true }).catch(() => {});
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const { error } = await supabase.storage.from(TTS_BUCKET).upload(path, bytes, {
+      contentType,
+      upsert: true,
+      cacheControl: '31536000',
+    });
+    if (error) {
+      console.error('TTS storage upload error:', error.message);
+      return null;
+    }
+    return ttsPublicUrl(path);
+  } catch (e) {
+    console.error('uploadAudioToStorage failed:', e);
+    return null;
+  }
+}
 
 interface VoiceSettings {
   voice: 'male' | 'female';
@@ -401,8 +449,22 @@ serve(async (req) => {
     const data = encoder.encode(JSON.stringify(keyData));
     const base64 = btoa(String.fromCharCode(...Array.from(data)));
     const cacheKey = base64.replace(/[+/=]/g, '');
+    const storagePath = `${operatorId || 'shared'}/multi_${await hashKey(cacheKey)}.mp3`;
 
-    // Generate multi-speaker audio using Google Cloud TTS
+    // 1) Storage hit? Serve existing file — no Google TTS call, no base64 over the wire.
+    const cachedUrl = await findCachedAudioUrl(storagePath);
+    if (cachedUrl) {
+      console.log('✅ Serving cached multi-speaker audio from storage:', storagePath);
+      return new Response(JSON.stringify({
+        audioUrl: cachedUrl,
+        cached: true,
+        cacheKey,
+        segments: segments.length,
+        voices: [...new Set(segments.map(s => s.voice))]
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // 2) Generate multi-speaker audio using Google Cloud TTS
     const audioData = await generateMultiSpeakerAudio(segments, {
       script,
       operatorId,
@@ -414,8 +476,12 @@ serve(async (req) => {
 
     console.log('Successfully generated multi-speaker audio');
 
+    const audioUrl = await uploadAudioToStorage(storagePath, audioData, 'audio/mpeg');
+
     return new Response(JSON.stringify({ 
-      audioContent: audioData,
+      audioUrl,
+      ...(audioUrl ? {} : { audioContent: audioData }),
+      cached: false,
       cacheKey,
       segments: segments.length,
       voices: [...new Set(segments.map(s => s.voice))]

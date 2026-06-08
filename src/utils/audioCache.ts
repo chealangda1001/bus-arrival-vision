@@ -148,13 +148,21 @@ export class AudioQueue {
   private isPlaying = false;
   private currentIndex = 0;
 
-  async addToQueue(base64Audio: string): Promise<void> {
-    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+  async addToQueue(audioInput: string): Promise<void> {
+    // Accept either a playable URL (CDN/storage/blob/data) or raw base64 audio.
+    const isUrl = /^(https?:|blob:|data:)/i.test(audioInput);
+    const src = isUrl ? audioInput : `data:audio/mp3;base64,${audioInput}`;
+    const audio = new Audio(src);
     this.queue.push(audio);
     
     if (!this.isPlaying) {
       await this.playNext();
     }
+  }
+
+  // Explicit URL variant for clarity at call sites.
+  async addUrlToQueue(url: string): Promise<void> {
+    return this.addToQueue(url);
   }
 
   private async playNext(): Promise<void> {
