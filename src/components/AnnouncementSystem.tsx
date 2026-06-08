@@ -239,13 +239,13 @@ export default function AnnouncementSystem({
       });
 
       if (error) throw error;
-      if (!data?.audioContent) throw new Error(`No audio content received for ${language}`);
+      const audioValue = data?.audioUrl || data?.audioContent;
+      if (!audioValue) throw new Error(`No audio received for ${language}`);
 
-      await audioCache.set(cacheKey, data.audioContent, 24);
+      await audioCache.set(cacheKey, audioValue, 24);
       setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
-      console.log(`✅ Generated ${language} TTS successfully`);
-      console.log(`💾 Cached new ${language} audio`);
-      return data.audioContent;
+      console.log(`✅ Generated ${language} TTS successfully`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
+      return audioValue;
     } catch (error) {
       console.error(`Error in generateDirectTTS for ${language}:`, error);
       setCacheStatus(prev => ({ ...prev, [language]: 'missing' }));
