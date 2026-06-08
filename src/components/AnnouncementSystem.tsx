@@ -179,13 +179,14 @@ export default function AnnouncementSystem({
         throw error;
       }
 
-      if (data?.audioContent) {
-        // Cache the generated audio (expires in 24 hours)
-        await audioCache.set(cacheKey, data.audioContent, 24);
+      // Prefer the CDN/storage URL (small payload, browser+CDN cached). Fall back to base64 if upload failed.
+      const audioValue = data?.audioUrl || data?.audioContent;
+      if (audioValue) {
+        // Cache the URL (or base64 fallback) — URLs are tiny so this stays cheap.
+        await audioCache.set(cacheKey, audioValue, 24);
         setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`);
-        console.log('💾 Cached new Khmer audio');
-        return data.audioContent;
+        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
+        return audioValue;
       }
 
       throw new Error("No audio content received from Gemini Khmer TTS");
