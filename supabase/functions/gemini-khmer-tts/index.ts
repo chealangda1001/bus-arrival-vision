@@ -309,12 +309,34 @@ serve(async (req) => {
 
     // Generate cache key
     const cacheKey = request.cacheKey || `gemini_khmer_${btoa(request.text)}_${request.operatorId}`;
-    
-    // Generate TTS audio
+    const storagePath = `${request.operatorId}/khmer_${await hashKey(cacheKey)}.wav`;
+
+    // 1) Storage hit? Serve the existing file directly — no Gemini call, no base64 over the wire.
+    const cachedUrl = await findCachedAudioUrl(storagePath);
+    if (cachedUrl) {
+      console.log('✅ Serving cached Khmer audio from storage:', storagePath);
+      return new Response(JSON.stringify({
+        audioUrl: cachedUrl,
+        cached: true,
+        cacheKey,
+        method: 'gemini_khmer_tts',
+        success: true,
+        language: 'khmer',
+        voice: 'Zephyr',
+        textLength: request.text.length,
+        timestamp: new Date().toISOString(),
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // 2) Generate TTS audio, then upload to storage and return its URL.
     const audioContent = await generateKhmerTTSWithGemini(request);
-    
+    const audioUrl = await uploadAudioToStorage(storagePath, audioContent, 'audio/wav');
+
     const response = {
-      audioContent,
+      audioUrl,
+      // Only include base64 when the upload failed, so playback never fully breaks.
+      ...(audioUrl ? {} : { audioContent }),
+      cached: false,
       cacheKey,
       method: 'gemini_khmer_tts',
       success: true,
