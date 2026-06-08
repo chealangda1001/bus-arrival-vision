@@ -275,14 +275,8 @@ export default function AnnouncementSystem({
       // Play in sequence: Khmer, English, Chinese
       const playUploadedAudio = async (audioUrl: string, language: 'khmer' | 'english' | 'chinese') => {
         setCurrentLanguage(language);
-        const response = await fetch(audioUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte), ''
-          )
-        );
-        await audioQueueRef.current.addToQueue(base64);
+        // Play the uploaded file straight from its URL (browser caches it; no base64 round-trip).
+        await audioQueueRef.current.addUrlToQueue(audioUrl);
         while (audioQueueRef.current.playing) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
