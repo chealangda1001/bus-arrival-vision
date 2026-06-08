@@ -113,9 +113,10 @@ export default function DriverAnnouncementPlayer({
             : (settings?.voice_settings?.chinese?.pitch || 0),
         }
       });
-      if (error || !data?.audioContent) throw error || new Error('No audio');
-      await audioCache.set(cacheKey, data.audioContent, 24);
-      return data.audioContent;
+      const audioValue = data?.audioUrl || data?.audioContent;
+      if (error || !audioValue) throw error || new Error('No audio');
+      await audioCache.set(cacheKey, audioValue, 24);
+      return audioValue;
     }
   };
 
