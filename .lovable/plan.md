@@ -1,69 +1,57 @@
+# Reduce TTS Egress with Storage-Backed Audio Caching
 
+## The Problem
 
-## Fix Branch User Display and Add Management Features
+Today every TTS call returns the full audio as a **base64 JSON payload** (`audioContent`). The only persistence is each browser's IndexedDB cache. So:
 
-### Problems Identified
+- Every client cache miss (new device, cleared cache, public board screens, drivers) re-runs Gemini **and** re-sends a large base64 blob through the edge function — heavy egress and wasted Gemini quota.
+- The same announcement is regenerated and re-downloaded independently by every device.
+- base64 inflates payload size ~33% over the raw audio.
 
-1. **Wrong branch assignment**: The "Siem Reap admin" user was assigned to "Chip Mong 6A" (the HQ branch) instead of "SR Psa Ler" (the actual Siem Reap branch). This is a data issue from branch selection during creation -- the fix below will make the branch dropdown clearer.
+## The Fix
 
-2. **"Unknown Branch" in Branch Users list**: The join query in `BranchUserManagement` may fail due to RLS on the `branches` table, causing the branch name to not resolve.
+Generate each announcement **once**, store the audio file in a **public Supabase Storage bucket**, and have clients play it from the **CDN URL**. The edge function returns a small JSON `{ audioUrl }` instead of a big base64 string. The browser and CDN cache the file, and all devices share the same stored file.
 
-3. **Branch user sees other branches' departures**: Already handled by `activeBranchId = profile?.branch_id` in `OperatorAdmin.tsx`, but need to verify the departure filtering works correctly when `branchId` is passed to `useDepartures`.
-
-4. **Branch Users tab lacks details and management actions**: Currently only shows username and branch badge -- no email, no delete, no password reset.
-
-### Changes
-
-#### 1. Update `src/components/BranchUserManagement.tsx` -- Enhanced UI with details and actions
-
-- **Show more user details**: Display email address (fetched from auth metadata or stored), branch name, and creation date
-- **Add Delete button**: Call the `create-admin-user` edge function or a new endpoint to delete the user (auth + profile cleanup)
-- **Add Reset Password button**: Use `supabase.functions.invoke` to call a function that resets the user's password via `supabase.auth.admin.updateUser`
-- **Better branch display**: Show branch name with location, and a colored badge for the role
-- **Confirmation dialogs**: Add confirm before delete
-
-The user list will show each branch user as a card with:
-- Username and email
-- Assigned branch name (with badge)
-- Created date
-- Actions: Reset Password (generates new password and shows it), Delete Account
-
-#### 2. Update Edge Function `create-admin-user` -- Add delete and reset password actions
-
-Add two new action modes to the existing edge function:
-- `action: 'delete'` -- Deletes both the auth user and profile using `supabase.auth.admin.deleteUser()`
-- `action: 'reset-password'` -- Updates the user's password using `supabase.auth.admin.updateUser()` and returns the new password
-
-This avoids creating separate edge functions while keeping the security model (only super_admin or same-operator operator_admin can perform these actions).
-
-#### 3. Fix branch user fetch query in `BranchUserManagement.tsx`
-
-- Fetch the user's email from the `auth.users` table via the edge function (since client can't access `auth.users` directly), or store email in the profiles table
-- Since we can't query `auth.users` from the client, we'll add an edge function call to fetch branch user details including email
-
-#### 4. Minor fix in `OperatorAdmin.tsx`
-
-- The `activeBranchId` logic is correct -- branch-scoped users already get filtered departures
-- Ensure the branch name displayed in the header comes from the profile's joined branch data (already working per code)
-
-### Technical Details
-
-**Edge Function changes (`create-admin-user/index.ts`):**
-```
-Request body gets a new field: action ('create' | 'delete' | 'reset-password')
-- Default action is 'create' (backward compatible)
-- 'delete': requires user_id, validates permissions, calls admin.deleteUser()
-- 'reset-password': requires user_id + new_password, calls admin.updateUser()
+```text
+Before:  client → edge fn → Gemini → base64 (big) → client (every miss, per device)
+After:   client → edge fn → [storage hit? return URL] else Gemini→upload→URL
+         client plays <audio src=CDN URL>  (browser + CDN cached, shared)
 ```
 
-**`BranchUserManagement.tsx` new features:**
-- Each user card shows: username, email (from edge function), branch name, creation date
-- Delete button with confirmation dialog
-- Reset Password button that generates a random password, calls the edge function, and displays the new credentials
-- After delete, refetch the user list
+## Implementation
 
-**Data fix:** The "Siem Reap admin" user currently points to "Chip Mong 6A" branch. The UI improvement will make branch selection clearer to avoid this in the future, but the existing assignment needs manual correction (either via the UI delete + recreate, or a direct update).
+### 1. Storage bucket
+- Create a public bucket `tts-audio` (read-only public; writes only via edge functions using the service role).
+- Files keyed by a deterministic hash of `operatorId + language + text + scriptHash`, e.g. `tts-audio/<operatorId>/<hash>.wav`. Same input → same path → automatic dedupe.
 
-### Files to Modify
-1. `supabase/functions/create-admin-user/index.ts` -- Add delete and reset-password actions
-2. `src/components/BranchUserManagement.tsx` -- Enhanced UI with email, delete, reset password
+### 2. Edge functions (`gemini-khmer-tts`, `direct-khmer-tts`, `gemini-multispeaker-tts`)
+- Compute the storage object path from the incoming cache key/hash.
+- **Check storage first**: if the object already exists, return its public URL immediately — no Gemini call, no base64.
+- On miss: generate audio (existing Gemini logic), **upload the bytes to the bucket** (service role), then return `{ audioUrl, cached:false }`.
+- Stop returning the large `audioContent` base64 field by default (keep a small flag/fallback only if upload fails, so playback never fully breaks).
+- Set long `cacheControl` (e.g. 1 year) on upload so the CDN/browser caches aggressively.
+
+### 3. Frontend (`AnnouncementSystem.tsx`, `audioCache.ts`, driver player)
+- `generateDirectKhmerTTS` / `generateDirectTTS` / multispeaker path: read `audioUrl` from the response instead of `audioContent`.
+- Replace IndexedDB-of-base64 with a lightweight **URL map** in IndexedDB (cache key → audioUrl). URLs are tiny, so this still avoids edge-function round-trips, and the actual audio bytes are served/cached by the CDN.
+- `AudioQueue`: add a `addUrlToQueue(url)` method that does `new Audio(url)` (alongside the existing base64 method for any uploaded-file fallback).
+- Cache-status indicators (`cached` / `generating` / `missing`) stay, now driven by presence of a stored URL.
+- "Clear cache" / "Regenerate": clear the local URL map and pass a force flag so the edge function regenerates and re-uploads (overwrites the storage object).
+
+### 4. Backfill / compatibility
+- No migration of existing IndexedDB needed — first play after deploy regenerates into storage, then all subsequent plays/devices are served from the CDN.
+- Uploaded custom audio (`*_audio_url` on departures) is unchanged.
+
+## Result
+- Audio bytes leave the edge function **once per unique announcement** instead of on every cache miss.
+- Repeat plays and multi-device/public-board playback are served from CDN cache (near-zero app egress).
+- Bonus: fewer Gemini calls (shared server-side cache), lower cost and fewer quota errors.
+
+## Files
+- New Supabase migration: create `tts-audio` public bucket + `storage.objects` policies (public read, service-role write).
+- `supabase/functions/gemini-khmer-tts/index.ts`
+- `supabase/functions/direct-khmer-tts/index.ts`
+- `supabase/functions/gemini-multispeaker-tts/index.ts`
+- `src/utils/audioCache.ts`
+- `src/components/AnnouncementSystem.tsx`
+- `src/components/DriverAnnouncementPlayer.tsx` (align with URL-based playback)
