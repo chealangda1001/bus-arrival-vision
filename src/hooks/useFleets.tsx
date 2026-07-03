@@ -136,8 +136,9 @@ export const useFleets = (operatorId?: string) => {
     fetchFleets();
 
     // Set up real-time subscription
+    const uniqueId = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
     const channel = supabase
-      .channel('fleets_changes')
+      .channel(`fleets_changes_${uniqueId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
