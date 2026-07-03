@@ -177,7 +177,8 @@ export const useDepartures = (branchId?: string) => {
     fetchDepartures();
 
     // Set up real-time subscription with branch filtering
-    const channelName = branchId ? `departures_changes_${branchId}` : 'departures_changes_all';
+    const uniqueId = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
+    const channelName = `departures_changes_${branchId ?? 'all'}_${uniqueId}`;
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', {
