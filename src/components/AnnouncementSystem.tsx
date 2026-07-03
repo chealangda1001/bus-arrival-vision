@@ -57,12 +57,24 @@ export default function AnnouncementSystem({
   // Find the matching announcement type config
   const announcementTypeConfig = announcementTypes.find(t => t.type_key === announcementTypeKey);
   
-  // Use type-specific scripts if available, fall back to operator_settings
-  const script = announcementTypeConfig?.announcement_scripts || settings?.announcement_scripts || {
+  // Per-language fallback: use type-specific script when non-empty, else operator
+  // settings, else built-in default. Prevents a blank field (e.g. Chinese) from
+  // silently disabling that language.
+  const DEFAULT_SCRIPTS = {
     english: "Attention passengers, {fleet_type} service to {destination} will depart at {time}. Bus plate number {plate}. Please proceed to the boarding area.",
     khmer: "សូមអ្នកដំណើរ សេវាកម្ម {fleet_type} ទៅ {destination} នឹងចេញនៅម៉ោង {time}។ លេខផ្ទាំងឡាន {plate}។ សូមទៅកាន់តំបន់ឡើងឡាន។",
     chinese: "乘客请注意，{fleet_type}开往{destination}的班车将于{time}发车。车牌号{plate}。请前往候车区域。"
   };
+  const pickScript = (lang: 'english' | 'khmer' | 'chinese') =>
+    announcementTypeConfig?.announcement_scripts?.[lang]?.trim() ||
+    settings?.announcement_scripts?.[lang]?.trim() ||
+    DEFAULT_SCRIPTS[lang];
+  const script = {
+    english: pickScript('english'),
+    khmer: pickScript('khmer'),
+    chinese: pickScript('chinese'),
+  };
+
 
   // Use type-specific repeat count if available
   const repeatCount = announcementTypeConfig?.repeat_count || settings?.announcement_repeat_count || 3;
