@@ -1,42 +1,49 @@
 ## Problem
 
-Clicking the **Drivers** tab crashes to a blank screen with:
+The Chinese voice never plays. Console logs show that once the announcement‑type config loads, the Chinese script template is an empty string (`""`), so playback logs "Skipping Chinese - empty template" and the audio is never generated or cached (badge stays "Not Cached").
 
-```
-Uncaught Error: cannot add `postgres_changes` callbacks for
-realtime:departures_changes_769e4f81-...-38763299176c after `subscribe()`.
+The backend is healthy: the `gemini-multispeaker-tts` edge function returns a valid Chinese MP3 when given Chinese text (verified directly). The issue is that the Chinese **script text** is blank for this operator's "departure" announcement type.
+
+Root cause in `src/components/AnnouncementSystem.tsx`:
+
+```tsx
+const script = announcementTypeConfig?.announcement_scripts
+  || settings?.announcement_scripts
+  || { …defaults };
 ```
 
-`useDepartures` builds its realtime channel with a name derived only from `branchId`:
-
-```
-departures_changes_<branchId>   (or departures_changes_all)
-```
-
-When the Drivers tab mounts, `DriverManagement` calls `useDepartures(branchId)` while `AdminPanel` already holds a `useDepartures(branchId)` instance with the identical channel name. Supabase returns the **existing, already-subscribed** channel, and attaching a second `postgres_changes` listener after `subscribe()` throws — an uncaught error that unmounts the whole tree, leaving a blank screen.
+The fallback is all-or-nothing at the object level. The announcement type has Khmer + English filled but an empty Chinese field, so the whole type object is used and the empty Chinese string wins — the settings/default Chinese text is never substituted.
 
 ## Fix
 
-Make each hook instance use a **unique channel name** so no two instances collide.
+Make the script fallback work **per language** so a blank field for any language falls back to operator settings, then to the built‑in default.
 
-In `src/hooks/useDepartures.tsx`, inside the realtime `useEffect`:
-
-- Generate a per-instance unique suffix (e.g. `crypto.randomUUID()` or `Math.random().toString(36)`) and append it to the channel name:
+In `AnnouncementSystem.tsx`, replace the single object-level fallback with a merged object that picks the first non-empty value for each of `khmer`, `english`, `chinese`:
 
 ```text
-departures_changes_<branchId>_<uniqueId>
+for each lang in (khmer, english, chinese):
+  script[lang] =
+    announcementTypeConfig?.announcement_scripts?[lang]?.trim()
+    || settings?.announcement_scripts?[lang]?.trim()
+    || DEFAULT_SCRIPTS[lang]
 ```
 
-- Keep the `postgres_changes` filter on `branch_id` unchanged so each instance still only receives its branch's rows.
-- Keep the cleanup `supabase.removeChannel(channel)` so the unique channel is torn down on unmount / branch change.
+This keeps the type-specific Khmer/English text while filling the missing Chinese from settings or the default, so Chinese generates, plays, and caches like the others. Languages the operator intentionally leaves blank everywhere (type + settings + no default) still skip correctly.
 
-This guarantees `.channel()` always returns a fresh channel, so `.on(...)` runs before `.subscribe()` and the error never occurs.
+## Also worth noting (optional, not required for the fix)
+
+- Server-side storage caching is currently failing for every language: `gemini-multispeaker-tts` returns `audioUrl: null` and falls back to base64, because the `tts-audio` bucket upload isn't succeeding. Playback still works via the base64 fallback, but this defeats the earlier egress-reduction work. Can be investigated separately if desired.
+
+## Alternative (no code change)
+
+If Chinese should differ per announcement type, the operator can simply fill in the Chinese script in the Translations / Announcement Type editor for the "departure" type. The per-language fallback above is the more robust fix and prevents the class of bug for all languages.
 
 ## Verification
 
-- Open Operator Admin, click the **Drivers** tab — it should render without a blank screen and without the `postgres_changes ... after subscribe()` console error.
-- Confirm departures still update in real time on the departures view.
+- Reload the Departures view; the Chinese badge should generate and show "Cached" after a Play.
+- Click "Play Announcement" — Khmer, English, then Chinese should all play in sequence.
+- Confirm an announcement type that intentionally has an empty Khmer/English/Chinese everywhere still skips that language without error.
 
 ## Technical details
 
-Only one file changes: `src/hooks/useDepartures.tsx` (channel-name construction inside the subscription `useEffect`). No database, RLS, or edge-function changes required.
+Single file changes: `src/components/AnnouncementSystem.tsx` — replace the `script` derivation (around lines 61–65) with a per-language merged object; no other logic, edge function, or DB changes needed.
