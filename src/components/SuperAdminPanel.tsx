@@ -16,6 +16,7 @@ import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volu
 import FleetManagement from "./FleetManagement";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
+import TtsProviderSettings from "./TtsProviderSettings";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
