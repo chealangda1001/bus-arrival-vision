@@ -7,6 +7,7 @@ import { type Departure } from "@/hooks/useDepartures";
 import { supabase } from "@/integrations/supabase/client";
 import { useOperatorSettings } from "@/hooks/useOperatorSettings";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
+import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
 import { audioCache, AudioQueue, checkCacheStatus, generateScriptHash } from "@/utils/audioCache";
 import { useToast } from "@/components/ui/use-toast";
 import { 
