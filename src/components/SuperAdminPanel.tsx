@@ -842,7 +842,7 @@ const SuperAdminPanel = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="operators" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="operators">Operator Management</TabsTrigger>
           <TabsTrigger value="admins" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -851,6 +851,10 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-5" />
             Fleet Management
+          </TabsTrigger>
+          <TabsTrigger value="tts" className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            TTS Provider
           </TabsTrigger>
         </TabsList>
         
