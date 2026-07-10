@@ -54,6 +54,7 @@ export default function AnnouncementSystem({
   
   const { settings, loading: settingsLoading } = useOperatorSettings(operatorId);
   const { types: announcementTypes, loading: typesLoading } = useAnnouncementTypes(operatorId); // eslint-disable-line
+  const { settings: ttsSettings } = useSystemTtsSettings();
   
   // Find the matching announcement type config
   const announcementTypeConfig = announcementTypes.find(t => t.type_key === announcementTypeKey);
