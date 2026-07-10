@@ -152,20 +152,27 @@ export default function AnnouncementSystem({
     console.log('Cache status check:', { khmer: cacheChecks[0], english: cacheChecks[1], chinese: cacheChecks[2] });
   };
 
-  // Generate Khmer TTS using Gemini 2.5 Pro with native Unicode support
+  // Generate Khmer TTS. Routes to KiriTTS when it is the primary provider,
+  // otherwise uses Gemini 2.5 Pro with native Unicode support.
   const generateDirectKhmerTTS = async (khmerText: string, forceRefresh = false) => {
     try {
+      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
+      const provider = useKiriTTS ? 'kiritts' : 'gemini';
+      const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
       const scriptHash = generateScriptHash(script);
-      const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
-      
-      console.log('🎵 Khmer TTS - Cache Key:', cacheKey);
-      
+      // Cache key includes the provider (+ voice) so switching providers never serves stale audio.
+      const cacheKey = useKiriTTS
+        ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`
+        : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
+
+      console.log(`🎵 Khmer TTS (${provider}) - Cache Key:`, cacheKey);
+
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log("✅ Using cached Gemini Khmer audio");
+          console.log(`✅ Using cached ${provider} Khmer audio`);
           setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
           return cachedAudio;
         }
@@ -175,21 +182,21 @@ export default function AnnouncementSystem({
         setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
       }
 
-      console.log("Generating Khmer TTS with Gemini 2.5 Pro TTS and Zephyr voice...");
+      console.log(`Generating Khmer TTS with ${provider}...`);
       console.log("Full Khmer text:", khmerText);
       console.log("Khmer text length:", khmerText.length);
-      
-      // Call the Gemini Khmer TTS function
-      const { data, error } = await supabase.functions.invoke('gemini-khmer-tts', {
-        body: { 
-          text: khmerText,
-          operatorId,
-          cacheKey
-        }
-      });
+
+      // Call the appropriate provider's edge function.
+      const { data, error } = useKiriTTS
+        ? await supabase.functions.invoke('kiritts-tts', {
+            body: { text: khmerText, operatorId, voice: kiriVoice, language: 'khmer', cacheKey },
+          })
+        : await supabase.functions.invoke('gemini-khmer-tts', {
+            body: { text: khmerText, operatorId, cacheKey },
+          });
 
       if (error) {
-        console.error("Error generating Gemini Khmer TTS:", error);
+        console.error(`Error generating ${provider} Khmer TTS:`, error);
         throw error;
       }
 
@@ -199,11 +206,12 @@ export default function AnnouncementSystem({
         // Cache the URL (or base64 fallback) — URLs are tiny so this stays cheap.
         await audioCache.set(cacheKey, audioValue, 24);
         setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-        console.log(`✅ Generated Khmer TTS using ${data.voice || 'Zephyr'} voice (${data.method || 'gemini_khmer_tts'})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
+        console.log(`✅ Generated Khmer TTS using ${provider} (${data.method || provider})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
         return audioValue;
       }
 
-      throw new Error("No audio content received from Gemini Khmer TTS");
+      throw new Error(`No audio content received from ${provider} Khmer TTS`);
+
     } catch (error) {
       console.error("Error in generateDirectKhmerTTS:", error);
       setCacheStatus(prev => ({ ...prev, khmer: 'missing' }));
