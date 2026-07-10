@@ -1890,6 +1890,10 @@ const SuperAdminPanel = () => {
           </div>
         </TabsContent>
 
+        <TabsContent value="tts" className="space-y-6">
+          <TtsProviderSettings />
+        </TabsContent>
+
         <TabsContent value="translations" className="space-y-6">
           <TranslationManagement />
         </TabsContent>
