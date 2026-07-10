@@ -16,6 +16,7 @@ import { Plus, Upload, Building2, Trash2, Edit2, MapPin, Clock, Bus, Truck, Volu
 import FleetManagement from "./FleetManagement";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
+import TtsProviderSettings from "./TtsProviderSettings";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -841,7 +842,7 @@ const SuperAdminPanel = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="operators" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="operators">Operator Management</TabsTrigger>
           <TabsTrigger value="admins" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -850,6 +851,10 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="fleets" className="flex items-center gap-2">
             <Truck className="w-4 h-5" />
             Fleet Management
+          </TabsTrigger>
+          <TabsTrigger value="tts" className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            TTS Provider
           </TabsTrigger>
         </TabsList>
         
@@ -1883,6 +1888,10 @@ const SuperAdminPanel = () => {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="tts" className="space-y-6">
+          <TtsProviderSettings />
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">

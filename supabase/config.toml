@@ -65,3 +65,9 @@ verify_jwt = false
 
 [functions.create-admin-user]
 verify_jwt = false
+
+[functions.kiritts-tts]
+verify_jwt = false
+
+[functions.kiritts-voices]
+verify_jwt = false
