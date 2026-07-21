@@ -650,6 +650,39 @@ export type Database = {
         }
         Relationships: []
       }
+      system_tts_settings: {
+        Row: {
+          created_at: string
+          id: string
+          khmer_provider: string
+          kiritts_chinese_voice: string
+          kiritts_english_voice: string
+          kiritts_khmer_voice: string
+          singleton_key: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          khmer_provider?: string
+          kiritts_chinese_voice?: string
+          kiritts_english_voice?: string
+          kiritts_khmer_voice?: string
+          singleton_key?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          khmer_provider?: string
+          kiritts_chinese_voice?: string
+          kiritts_english_voice?: string
+          kiritts_khmer_voice?: string
+          singleton_key?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       voice_preferences: {
         Row: {
           auto_selected_voice: string | null
