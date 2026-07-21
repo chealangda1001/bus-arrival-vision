@@ -130,10 +130,17 @@ export default function AnnouncementSystem({
     const englishText = generateAnnouncementText(script.english, departure, 'english');
     const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
 
+    // Match Khmer cache key to the active TTS provider (see generateDirectKhmerTTS).
+    const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
+    const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
+    const khmerCacheKey = useKiriTTS
+      ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`
+      : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
+
     // Only check cache for non-empty templates
     const cacheChecks = await Promise.all([
-      khmerText.trim() 
-        ? checkCacheStatus(`gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`)
+      khmerText.trim()
+        ? checkCacheStatus(khmerCacheKey)
         : Promise.resolve('missing' as const),
       englishText.trim()
         ? checkCacheStatus(`english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`)
