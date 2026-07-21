@@ -15,14 +15,28 @@ serve(async (req) => {
     const apiKey = Deno.env.get('KIRITTS_API_KEY');
     if (!apiKey) throw new Error('KIRITTS_API_KEY not configured');
 
-    const res = await fetch('https://api.kiritts.com/v1/audio/voices', {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-    });
+    const voiceEndpoints = [
+      'https://api.kiritts.com/v1/audio/voices',
+      'https://api.kiritts.com/api/voices',
+      'https://api.kiritts.com/api/v1/audio/voices',
+    ];
 
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => '');
-      console.error(`KiriTTS voices error: ${res.status} - ${errorText}`);
-      throw new Error(`KiriTTS voices error: ${res.status} - ${errorText}`);
+    let res: Response | null = null;
+    let lastErrorText = '';
+
+    for (const endpoint of voiceEndpoints) {
+      res = await fetch(endpoint, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+
+      if (res.ok) break;
+      lastErrorText = await res.text().catch(() => '');
+      console.warn(`KiriTTS voices endpoint failed: ${endpoint} (${res.status}) - ${lastErrorText}`);
+    }
+
+    if (!res || !res.ok) {
+      console.error(`KiriTTS voices error: ${res?.status || 'no response'} - ${lastErrorText}`);
+      throw new Error(`KiriTTS voices error: ${res?.status || 'no response'} - ${lastErrorText}`);
     }
 
     const data = await res.json();

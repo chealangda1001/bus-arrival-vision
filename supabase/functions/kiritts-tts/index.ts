@@ -106,23 +106,36 @@ serve(async (req) => {
 
     // 2) Generate via KiriTTS (OpenAI-compatible speech endpoint), returns audio/mpeg.
     console.log(`Generating KiriTTS ${language} audio with voice ${voice}, length ${request.text.length}`);
-    const ttsResponse = await fetch('https://api.kiritts.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'kiritts',
-        voice,
-        input: request.text,
-      }),
-    });
+    const speechEndpoints = [
+      'https://api.kiritts.com/v1/audio/speech',
+      'https://api.kiritts.com/api/v1/audio/speech',
+    ];
 
-    if (!ttsResponse.ok) {
-      const errorText = await ttsResponse.text().catch(() => '');
-      console.error(`KiriTTS API error: ${ttsResponse.status} - ${errorText}`);
-      throw new Error(`KiriTTS API error: ${ttsResponse.status} - ${errorText}`);
+    let ttsResponse: Response | null = null;
+    let lastErrorText = '';
+
+    for (const endpoint of speechEndpoints) {
+      ttsResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'kiritts',
+          voice,
+          input: request.text,
+        }),
+      });
+
+      if (ttsResponse.ok) break;
+      lastErrorText = await ttsResponse.text().catch(() => '');
+      console.warn(`KiriTTS speech endpoint failed: ${endpoint} (${ttsResponse.status}) - ${lastErrorText}`);
+    }
+
+    if (!ttsResponse || !ttsResponse.ok) {
+      console.error(`KiriTTS API error: ${ttsResponse?.status || 'no response'} - ${lastErrorText}`);
+      throw new Error(`KiriTTS API error: ${ttsResponse?.status || 'no response'} - ${lastErrorText}`);
     }
 
     const audioBytes = new Uint8Array(await ttsResponse.arrayBuffer());
