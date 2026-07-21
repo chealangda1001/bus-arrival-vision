@@ -16,6 +16,7 @@ serve(async (req) => {
     if (!apiKey) throw new Error('KIRITTS_API_KEY not configured');
 
     const voiceEndpoints = [
+      'https://www.kiritts.com/api/voices',
       'https://api.kiritts.com/v1/audio/voices',
       'https://api.kiritts.com/api/voices',
       'https://api.kiritts.com/api/v1/audio/voices',

@@ -108,6 +108,7 @@ serve(async (req) => {
     console.log(`Generating KiriTTS ${language} audio with voice ${voice}, length ${request.text.length}`);
     const speechEndpoints = [
       'https://api.kiritts.com/v1/audio/speech',
+      'https://www.kiritts.com/api/v1/audio/speech',
       'https://api.kiritts.com/api/v1/audio/speech',
     ];
 
