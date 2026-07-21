@@ -12,8 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('KIRITTS_API_KEY');
-    if (!apiKey) throw new Error('KIRITTS_API_KEY not configured');
+    const rawApiKey = Deno.env.get('KIRITTS_API_KEY');
+    if (!rawApiKey) throw new Error('KIRITTS_API_KEY not configured');
+    const apiKey = rawApiKey.trim().replace(/^Bearer\s+/i, '');
 
     const voiceEndpoints = [
       'https://www.kiritts.com/api/voices',

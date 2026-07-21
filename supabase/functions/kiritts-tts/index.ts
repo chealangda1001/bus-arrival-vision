@@ -79,8 +79,9 @@ serve(async (req) => {
     if (!request.text) throw new Error('Text parameter is required');
     if (!request.operatorId) throw new Error('Operator ID is required');
 
-    const apiKey = Deno.env.get('KIRITTS_API_KEY');
-    if (!apiKey) throw new Error('KIRITTS_API_KEY not configured');
+    const rawApiKey = Deno.env.get('KIRITTS_API_KEY');
+    if (!rawApiKey) throw new Error('KIRITTS_API_KEY not configured');
+    const apiKey = rawApiKey.trim().replace(/^Bearer\s+/i, '');
 
     const voice = request.voice || 'Kiri';
     const language = request.language || 'khmer';
