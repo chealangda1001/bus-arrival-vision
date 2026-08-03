@@ -70,6 +70,6 @@ Today the browser copy expires after 24 hours (`audioCache.set(key, value, 24)`)
 
 - migration: `tts_request_logs` table, grants, RLS
 - `supabase/functions/_shared/ttsLog.ts` (new), and the four TTS functions
-- `src/components/AnnouncementSystem.tsx`, `src/components/DriverAnnouncementPlayer.tsx`
+- `src/utils/audioCache.ts` (permanent entries), `src/components/AnnouncementSystem.tsx`, `src/components/DriverAnnouncementPlayer.tsx`
 - `src/components/TtsUsageLogs.tsx` (new), `src/components/SuperAdminPanel.tsx`, `src/components/AdminPanel.tsx`
 - `vitest.config.ts`, `src/test/setup.ts`, `src/components/__tests__/khmerTtsCache.test.tsx`
