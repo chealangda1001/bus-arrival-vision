@@ -10,6 +10,8 @@ import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { audioCache, AudioQueue, generateScriptHash } from "@/utils/audioCache";
 import { useToast } from "@/components/ui/use-toast";
 import { formatTimeWithKhmerPeriods, formatTimeEnglish, formatTimeChinese } from "@/utils/timeFormatter";
+import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
+import { logTtsEvent } from "@/utils/ttsLogger";
 
 interface DriverAnnouncementPlayerProps {
   departure: Departure;
@@ -46,6 +48,17 @@ export default function DriverAnnouncementPlayer({
 
   const { settings, loading: settingsLoading } = useOperatorSettings(operatorId);
   const { types: announcementTypes, loading: typesLoading } = useAnnouncementTypes(operatorId);
+  const { settings: ttsSettings } = useSystemTtsSettings();
+
+  const logContext = () => ({
+    operatorId,
+    branchId: (departure as any)?.branch_id ?? null,
+    departureId: departure?.id ?? null,
+    destination: departure?.destination ?? null,
+    plateNumber: departure?.plate_number ?? null,
+    departureTime: departure?.departure_time ?? null,
+    announcementType: announcementTypeKey,
+  });
 
   const typeConfig = announcementTypes.find(t => t.type_key === announcementTypeKey);
   const script = typeConfig?.announcement_scripts || settings?.announcement_scripts || {
@@ -83,21 +96,46 @@ export default function DriverAnnouncementPlayer({
     const scriptHash = generateScriptHash(script as any);
 
     if (lang === 'khmer') {
-      const cacheKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
-      const cached = await audioCache.get(cacheKey);
-      if (cached) return cached;
+      // Use the same provider + cache key scheme as the board so audio is shared, not regenerated.
+      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
+      const provider = useKiriTTS ? 'kiritts' : 'gemini';
+      const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
+      const cacheKey = useKiriTTS
+        ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`
+        : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
 
-      const { data, error } = await supabase.functions.invoke('gemini-khmer-tts', {
-        body: { text, operatorId, cacheKey }
-      });
+      const cached = await audioCache.get(cacheKey);
+      if (cached) {
+        void logTtsEvent({
+          ...logContext(), language: 'khmer', provider,
+          voice: useKiriTTS ? kiriVoice : 'Zephyr',
+          scriptText: text, scriptHash, cacheKey, cacheResult: 'client_hit',
+        });
+        return cached;
+      }
+
+      const { data, error } = useKiriTTS
+        ? await supabase.functions.invoke('kiritts-tts', {
+            body: { text, operatorId, voice: kiriVoice, language: 'khmer', cacheKey, scriptHash, ...logContext() },
+          })
+        : await supabase.functions.invoke('gemini-khmer-tts', {
+            body: { text, operatorId, cacheKey, scriptHash, ...logContext() },
+          });
       const audioValue = data?.audioUrl || data?.audioContent;
       if (error || !audioValue) throw error || new Error('No audio');
-      await audioCache.set(cacheKey, audioValue, 24);
+      await audioCache.set(cacheKey, audioValue);
       return audioValue;
     } else {
       const cacheKey = `${lang}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
       const cached = await audioCache.get(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        void logTtsEvent({
+          ...logContext(), language: lang, provider: 'google_multispeaker',
+          voice: lang === 'english' ? 'Kore' : 'Luna',
+          scriptText: text, scriptHash, cacheKey, cacheResult: 'client_hit',
+        });
+        return cached;
+      }
 
       const voice = lang === 'english' ? 'Kore' : 'Luna';
       const singleScript = `[Voice: ${voice}] ${text}`;
@@ -111,11 +149,16 @@ export default function DriverAnnouncementPlayer({
           pitchAdjustment: lang === 'english'
             ? (settings?.voice_settings?.english?.pitch || 0)
             : (settings?.voice_settings?.chinese?.pitch || 0),
+          cacheKey,
+          scriptHash,
+          language: lang,
+          voice,
+          ...logContext(),
         }
       });
       const audioValue = data?.audioUrl || data?.audioContent;
       if (error || !audioValue) throw error || new Error('No audio');
-      await audioCache.set(cacheKey, audioValue, 24);
+      await audioCache.set(cacheKey, audioValue);
       return audioValue;
     }
   };
