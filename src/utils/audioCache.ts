@@ -36,24 +36,36 @@ class AudioCacheManager {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const result = request.result;
-        if (result && result.expires > Date.now()) {
+        if (!result) {
+          resolve(null);
+          return;
+        }
+        // expires === 0 (or missing) means "never expires".
+        const permanent = !result.expires;
+        if (permanent || result.expires > Date.now()) {
           resolve(result.audioData);
         } else {
-          // Clean up expired entry
-          if (result) this.delete(cacheKey);
+          this.delete(cacheKey);
           resolve(null);
         }
       };
     });
   }
 
-  async set(cacheKey: string, audioData: string, ttlHours = 168): Promise<void> { // 7 days default
+  /**
+   * Store audio (URL or base64) in the cache.
+   * By default entries are PERMANENT: generated audio is only replaced when the
+   * cache key changes (script text / provider / voice change).
+   * Pass a number of hours to opt into an expiry.
+   */
+  async set(cacheKey: string, audioData: string, ttlHours: number | null = null): Promise<void> {
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
-      const expires = Date.now() + (ttlHours * 60 * 60 * 1000);
+      // 0 = never expires; the expired-entry sweep uses a lowerBound of 1 so it skips these.
+      const expires = ttlHours ? Date.now() + (ttlHours * 60 * 60 * 1000) : 0;
       
       const request = store.put({
         cacheKey,
@@ -66,6 +78,7 @@ class AudioCacheManager {
       request.onsuccess = () => resolve();
     });
   }
+
 
   async delete(cacheKey: string): Promise<void> {
     if (!this.db) await this.init();
