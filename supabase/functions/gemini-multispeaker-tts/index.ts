@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { logTtsRequest } from '../_shared/ttsLog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -412,8 +413,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startedAt = Date.now();
+  let logBase: any = { provider: 'google_multispeaker', language: 'mixed' };
+
   try {
-    const { script, operatorId, speechRate, pitchAdjustment, temperature, styleInstructions }: TTSRequest = await req.json();
+    const body: any = await req.json();
+    const { script, operatorId, speechRate, pitchAdjustment, temperature, styleInstructions } = body as TTSRequest;
 
     if (!script) {
       throw new Error('Script is required');
@@ -451,10 +456,28 @@ serve(async (req) => {
     const cacheKey = base64.replace(/[+/=]/g, '');
     const storagePath = `${operatorId || 'shared'}/multi_${await hashKey(cacheKey)}.mp3`;
 
+    logBase = {
+      provider: 'google_multispeaker',
+      language: body.language || 'mixed',
+      voice: body.voice || null,
+      operatorId,
+      branchId: body.branchId,
+      departureId: body.departureId,
+      destination: body.destination,
+      plateNumber: body.plateNumber,
+      departureTime: body.departureTime,
+      announcementType: body.announcementType,
+      scriptText: script,
+      scriptHash: body.scriptHash,
+      cacheKey,
+      storagePath,
+    };
+
     // 1) Storage hit? Serve existing file — no Google TTS call, no base64 over the wire.
     const cachedUrl = await findCachedAudioUrl(storagePath);
     if (cachedUrl) {
       console.log('✅ Serving cached multi-speaker audio from storage:', storagePath);
+      await logTtsRequest(req, { ...logBase, cacheResult: 'storage_hit', durationMs: Date.now() - startedAt });
       return new Response(JSON.stringify({
         audioUrl: cachedUrl,
         cached: true,
@@ -478,6 +501,8 @@ serve(async (req) => {
 
     const audioUrl = await uploadAudioToStorage(storagePath, audioData, 'audio/mpeg');
 
+    await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+
     return new Response(JSON.stringify({ 
       audioUrl,
       ...(audioUrl ? {} : { audioContent: audioData }),
@@ -491,6 +516,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in gemini-multispeaker-tts function:', error);
+    await logTtsRequest(req, { ...logBase, cacheResult: 'error', errorMessage: error.message, durationMs: Date.now() - startedAt });
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
