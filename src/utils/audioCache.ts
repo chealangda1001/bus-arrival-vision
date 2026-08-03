@@ -100,7 +100,8 @@ class AudioCacheManager {
       const transaction = this.db!.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
       const index = store.index('expires');
-      const range = IDBKeyRange.upperBound(Date.now());
+      // Skip permanent entries (expires === 0) by starting the range above 0.
+      const range = IDBKeyRange.bound(1, Date.now());
       const request = index.openCursor(range);
 
       request.onerror = () => reject(request.error);
