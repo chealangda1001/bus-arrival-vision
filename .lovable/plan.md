@@ -51,10 +51,20 @@ Add the Vitest setup this project does not have yet (`vitest.config.ts`, `src/te
 - same assertion for the driver player path,
 - a regression test asserting the admin board and driver player produce the **identical** Khmer cache key for the same script and provider.
 
+## 5. Make the cached audio permanent
+
+Today the browser copy expires after 24 hours (`audioCache.set(key, value, 24)`), so the day after a generation the client re-requests the audio. This will be removed:
+
+- `src/utils/audioCache.ts` gets a "no expiry" mode (entries stored without an `expires` cut-off; the periodic `clearExpired` sweep skips them).
+- All `audioCache.set(...)` calls in `AnnouncementSystem.tsx` and `DriverAnnouncementPlayer.tsx` drop the 24-hour TTL, so audio is kept indefinitely.
+- Regeneration then happens only when the cache key changes — and the key already contains the script hash, provider and voice, so it changes only if the script text, provider or voice changes.
+- The server-side `tts-audio` storage copy is already permanent, so even a cleared browser cache results in a storage hit, not a new KiriTTS call.
+
 ## Technical notes
 
-- Client cache TTL stays 24h but the log will show if re-generation after expiry is a meaningful cost driver; if so we can raise it (server storage cache is permanent, so an expired client entry should still be a storage hit, not a new generation).
 - Logging failures are swallowed — audio playback is never blocked by the log write.
+- The offline test also asserts that a cached entry is still returned after simulating a clock advance well beyond 24 hours.
+
 
 ## Files touched
 
