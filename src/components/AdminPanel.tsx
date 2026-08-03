@@ -603,7 +603,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
 
       {/* Tabs for different management sections */}
       <Tabs defaultValue="departures" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="departures">Departures</TabsTrigger>
           <TabsTrigger value="branches" className="flex items-center gap-2">
             Branches
@@ -624,10 +624,18 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
             <Volume2 className="w-4 h-4" />
             Settings
           </TabsTrigger>
+          <TabsTrigger value="tts-logs" className="flex items-center gap-2">
+            TTS Usage
+          </TabsTrigger>
           <TabsTrigger value="translations" className="flex items-center gap-2">
             Translations
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="tts-logs" className="space-y-6">
+          <TtsUsageLogs operatorId={operatorId} />
+        </TabsContent>
+
         
         <TabsContent value="departures" className="space-y-6">
           <div className="flex justify-between items-center">
