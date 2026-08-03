@@ -188,11 +188,14 @@ serve(async (req) => {
       timestamp: new Date().toISOString(),
     };
 
+    await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error in kiritts-tts function:', error);
+    await logTtsRequest(req, { ...logBase, cacheResult: 'error', errorMessage: error.message, durationMs: Date.now() - startedAt });
     return new Response(JSON.stringify({
       error: error.message,
       success: false,
