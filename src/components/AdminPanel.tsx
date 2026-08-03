@@ -23,6 +23,7 @@ import { TranslationManagement } from "./TranslationManagement";
 import BulkUploadDepartures from "./BulkUploadDepartures";
 import DriverManagement from "./DriverManagement";
 import BranchUserManagement from "./BranchUserManagement";
+import TtsUsageLogs from "./TtsUsageLogs";
 
 interface AdminPanelProps {
   branchId?: string;
