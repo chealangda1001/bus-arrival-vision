@@ -93,7 +93,10 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
     const duplicateGenerations = Array.from(genPerHash.values()).reduce((sum, n) => sum + Math.max(0, n - 1), 0);
     const total = logs.length || 1;
     return {
-      ...counts,
+      client_hit: counts.client_hit,
+      storage_hit: counts.storage_hit,
+      generated: counts.generated,
+      error: counts.error,
       total: logs.length,
       duplicateGenerations,
       hitRate: Math.round(((counts.client_hit + counts.storage_hit) / total) * 100),
