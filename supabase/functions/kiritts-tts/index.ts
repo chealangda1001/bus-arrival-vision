@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
+import { logTtsRequest } from '../_shared/ttsLog.ts'
 
 // ---- Shared TTS storage helpers (serve audio from a public bucket to cut egress) ----
 const TTS_BUCKET = 'tts-audio';
@@ -66,12 +67,23 @@ interface KiriTTSRequest {
   voice?: string;
   language?: string; // 'khmer' | 'english' | 'chinese'
   cacheKey?: string;
+  // Optional logging context
+  branchId?: string;
+  departureId?: string;
+  destination?: string;
+  plateNumber?: string;
+  departureTime?: string;
+  announcementType?: string;
+  scriptHash?: string;
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startedAt = Date.now();
+  let logBase: any = { provider: 'kiritts', language: 'khmer' };
 
   try {
     const request: KiriTTSRequest = await req.json();
@@ -88,10 +100,28 @@ serve(async (req) => {
     const cacheKey = request.cacheKey || `kiritts_${language}_${voice}_${btoa(unescape(encodeURIComponent(request.text)))}_${request.operatorId}`;
     const storagePath = `${request.operatorId}/kiritts_${language}_${await hashKey(cacheKey)}.mp3`;
 
+    logBase = {
+      provider: 'kiritts',
+      operatorId: request.operatorId,
+      branchId: request.branchId,
+      departureId: request.departureId,
+      destination: request.destination,
+      plateNumber: request.plateNumber,
+      departureTime: request.departureTime,
+      announcementType: request.announcementType,
+      language,
+      voice,
+      scriptText: request.text,
+      scriptHash: request.scriptHash,
+      cacheKey,
+      storagePath,
+    };
+
     // 1) Storage hit? Serve the existing file directly.
     const cachedUrl = await findCachedAudioUrl(storagePath);
     if (cachedUrl) {
       console.log('✅ Serving cached KiriTTS audio from storage:', storagePath);
+      await logTtsRequest(req, { ...logBase, cacheResult: 'storage_hit', durationMs: Date.now() - startedAt });
       return new Response(JSON.stringify({
         audioUrl: cachedUrl,
         cached: true,
@@ -104,6 +134,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString(),
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
 
     // 2) Generate via KiriTTS (OpenAI-compatible speech endpoint), returns audio/mpeg.
     console.log(`Generating KiriTTS ${language} audio with voice ${voice}, length ${request.text.length}`);
@@ -157,11 +188,14 @@ serve(async (req) => {
       timestamp: new Date().toISOString(),
     };
 
+    await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error in kiritts-tts function:', error);
+    await logTtsRequest(req, { ...logBase, cacheResult: 'error', errorMessage: error.message, durationMs: Date.now() - startedAt });
     return new Response(JSON.stringify({
       error: error.message,
       success: false,

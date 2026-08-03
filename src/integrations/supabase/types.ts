@@ -683,6 +683,84 @@ export type Database = {
         }
         Relationships: []
       }
+      tts_request_logs: {
+        Row: {
+          announcement_type: string | null
+          branch_id: string | null
+          cache_key: string | null
+          cache_result: string
+          char_count: number
+          created_at: string
+          departure_id: string | null
+          departure_time: string | null
+          destination: string | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          language: string
+          operator_id: string | null
+          plate_number: string | null
+          provider: string
+          script_hash: string | null
+          script_text: string | null
+          storage_path: string | null
+          user_email: string | null
+          user_id: string | null
+          user_role: string | null
+          voice: string | null
+        }
+        Insert: {
+          announcement_type?: string | null
+          branch_id?: string | null
+          cache_key?: string | null
+          cache_result?: string
+          char_count?: number
+          created_at?: string
+          departure_id?: string | null
+          departure_time?: string | null
+          destination?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          language?: string
+          operator_id?: string | null
+          plate_number?: string | null
+          provider?: string
+          script_hash?: string | null
+          script_text?: string | null
+          storage_path?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+          voice?: string | null
+        }
+        Update: {
+          announcement_type?: string | null
+          branch_id?: string | null
+          cache_key?: string | null
+          cache_result?: string
+          char_count?: number
+          created_at?: string
+          departure_id?: string | null
+          departure_time?: string | null
+          destination?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          language?: string
+          operator_id?: string | null
+          plate_number?: string | null
+          provider?: string
+          script_hash?: string | null
+          script_text?: string | null
+          storage_path?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+          voice?: string | null
+        }
+        Relationships: []
+      }
       voice_preferences: {
         Row: {
           auto_selected_voice: string | null

@@ -17,6 +17,7 @@ import FleetManagement from "./FleetManagement";
 import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
 import TtsProviderSettings from "./TtsProviderSettings";
+import TtsUsageLogs from "./TtsUsageLogs";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -842,7 +843,7 @@ const SuperAdminPanel = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="operators" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="operators">Operator Management</TabsTrigger>
           <TabsTrigger value="admins" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -855,6 +856,9 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="tts" className="flex items-center gap-2">
             <Volume2 className="w-4 h-4" />
             TTS Provider
+          </TabsTrigger>
+          <TabsTrigger value="tts-logs" className="flex items-center gap-2">
+            TTS Usage
           </TabsTrigger>
         </TabsList>
         
@@ -1892,6 +1896,10 @@ const SuperAdminPanel = () => {
 
         <TabsContent value="tts" className="space-y-6">
           <TtsProviderSettings />
+        </TabsContent>
+
+        <TabsContent value="tts-logs" className="space-y-6">
+          <TtsUsageLogs isSuperAdmin />
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">

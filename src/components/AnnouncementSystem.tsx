@@ -16,6 +16,7 @@ import {
   DEFAULT_STYLE_INSTRUCTIONS 
 } from "@/utils/scriptParser";
 import { formatTimeWithKhmerPeriods, formatTimeEnglish, formatTimeChinese } from "@/utils/timeFormatter";
+import { logTtsEvent } from "@/utils/ttsLogger";
 
 interface AnnouncementSystemProps {
   departure?: Departure;
@@ -51,6 +52,17 @@ export default function AnnouncementSystem({
   }>({ khmer: 'missing', english: 'missing', chinese: 'missing' });
   const audioQueueRef = useRef<AudioQueue>(new AudioQueue());
   const { toast } = useToast();
+
+  // Attribution passed to the TTS log so every call can be traced to a trip.
+  const logContext = () => ({
+    operatorId,
+    branchId: (departure as any)?.branch_id ?? null,
+    departureId: departure?.id ?? null,
+    destination: departure?.destination ?? null,
+    plateNumber: departure?.plate_number ?? null,
+    departureTime: departure?.departure_time ?? null,
+    announcementType: announcementTypeKey,
+  });
   
   const { settings, loading: settingsLoading } = useOperatorSettings(operatorId);
   const { types: announcementTypes, loading: typesLoading } = useAnnouncementTypes(operatorId); // eslint-disable-line
@@ -179,8 +191,18 @@ export default function AnnouncementSystem({
         setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log(`✅ Using cached ${provider} Khmer audio`);
+          console.log(`✅ Using cached ${provider} Khmer audio (no TTS call)`);
           setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
+          void logTtsEvent({
+            ...logContext(),
+            language: 'khmer',
+            provider,
+            voice: useKiriTTS ? kiriVoice : 'Zephyr',
+            scriptText: khmerText,
+            scriptHash,
+            cacheKey,
+            cacheResult: 'client_hit',
+          });
           return cachedAudio;
         }
         console.log("🔄 No cached Khmer audio found, generating new...");
@@ -196,10 +218,10 @@ export default function AnnouncementSystem({
       // Call the appropriate provider's edge function.
       const { data, error } = useKiriTTS
         ? await supabase.functions.invoke('kiritts-tts', {
-            body: { text: khmerText, operatorId, voice: kiriVoice, language: 'khmer', cacheKey },
+            body: { text: khmerText, operatorId, voice: kiriVoice, language: 'khmer', cacheKey, scriptHash, ...logContext() },
           })
         : await supabase.functions.invoke('gemini-khmer-tts', {
-            body: { text: khmerText, operatorId, cacheKey },
+            body: { text: khmerText, operatorId, cacheKey, scriptHash, ...logContext() },
           });
 
       if (error) {
@@ -211,7 +233,8 @@ export default function AnnouncementSystem({
       const audioValue = data?.audioUrl || data?.audioContent;
       if (audioValue) {
         // Cache the URL (or base64 fallback) — URLs are tiny so this stays cheap.
-        await audioCache.set(cacheKey, audioValue, 24);
+        // Permanent cache: only a script/provider/voice change produces a new key.
+        await audioCache.set(cacheKey, audioValue);
         setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
         console.log(`✅ Generated Khmer TTS using ${provider} (${data.method || provider})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
         return audioValue;
@@ -239,8 +262,18 @@ export default function AnnouncementSystem({
         setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
         const cachedAudio = await audioCache.get(cacheKey);
         if (cachedAudio) {
-          console.log(`✅ Using cached direct ${language} audio`);
+          console.log(`✅ Using cached direct ${language} audio (no TTS call)`);
           setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
+          void logTtsEvent({
+            ...logContext(),
+            language,
+            provider: 'google_multispeaker',
+            voice: language === 'english' ? 'Kore' : 'Luna',
+            scriptText: text,
+            scriptHash,
+            cacheKey,
+            cacheResult: 'client_hit',
+          });
           return cachedAudio;
         }
         console.log(`🔄 No cached ${language} audio found, generating new...`);
@@ -263,7 +296,12 @@ export default function AnnouncementSystem({
             (settings?.voice_settings?.chinese?.speed || 0.9),
           pitchAdjustment: language === 'english' ? 
             (settings?.voice_settings?.english?.pitch || 0) : 
-            (settings?.voice_settings?.chinese?.pitch || 0)
+            (settings?.voice_settings?.chinese?.pitch || 0),
+          cacheKey,
+          scriptHash,
+          language,
+          voice: language === 'english' ? 'Kore' : 'Luna',
+          ...logContext(),
         }
       });
 
@@ -271,7 +309,7 @@ export default function AnnouncementSystem({
       const audioValue = data?.audioUrl || data?.audioContent;
       if (!audioValue) throw new Error(`No audio received for ${language}`);
 
-      await audioCache.set(cacheKey, audioValue, 24);
+      await audioCache.set(cacheKey, audioValue);
       setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
       console.log(`✅ Generated ${language} TTS successfully`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
       return audioValue;
