@@ -7,6 +7,8 @@ export interface SystemTtsSettings {
   kiritts_khmer_voice: string;
   kiritts_english_voice: string;
   kiritts_chinese_voice: string;
+  /** Playback speed for KiriTTS Khmer audio (1 = normal, lower = slower). */
+  kiritts_khmer_speed: number;
 }
 
 const DEFAULT_SETTINGS: Omit<SystemTtsSettings, 'id'> = {
@@ -14,7 +16,9 @@ const DEFAULT_SETTINGS: Omit<SystemTtsSettings, 'id'> = {
   kiritts_khmer_voice: 'Kiri',
   kiritts_english_voice: 'Maly',
   kiritts_chinese_voice: 'Kiri',
+  kiritts_khmer_speed: 0.9,
 };
+
 
 export const useSystemTtsSettings = () => {
   const [settings, setSettings] = useState<SystemTtsSettings | null>(null);
@@ -32,7 +36,11 @@ export const useSystemTtsSettings = () => {
 
       if (error) throw error;
       if (data) {
-        setSettings(data as SystemTtsSettings);
+        setSettings({
+          ...(data as SystemTtsSettings),
+          kiritts_khmer_speed: Number((data as any).kiritts_khmer_speed ?? 0.9),
+        });
+
       } else {
         setSettings({ id: '', ...DEFAULT_SETTINGS });
       }

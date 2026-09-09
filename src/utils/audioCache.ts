@@ -161,6 +161,12 @@ export class AudioQueue {
   private queue: HTMLAudioElement[] = [];
   private isPlaying = false;
   private currentIndex = 0;
+  private gapMs: number;
+
+  // Small silence between clips so stitched announcement fragments don't run together.
+  constructor(gapMs = 0) {
+    this.gapMs = gapMs;
+  }
 
   async addToQueue(audioInput: string): Promise<void> {
     // Accept either a playable URL (CDN/storage/blob/data) or raw base64 audio.
@@ -174,10 +180,23 @@ export class AudioQueue {
     }
   }
 
+  /** Queue several clips (announcement fragments) and play them back to back. */
+  async addManyToQueue(clips: string[]): Promise<void> {
+    for (const clip of clips) {
+      const isUrl = /^(https?:|blob:|data:)/i.test(clip);
+      const audio = new Audio(isUrl ? clip : `data:audio/mp3;base64,${clip}`);
+      this.queue.push(audio);
+    }
+    if (!this.isPlaying) {
+      await this.playNext();
+    }
+  }
+
   // Explicit URL variant for clarity at call sites.
   async addUrlToQueue(url: string): Promise<void> {
     return this.addToQueue(url);
   }
+
 
   private async playNext(): Promise<void> {
     if (this.currentIndex >= this.queue.length) {
@@ -191,23 +210,31 @@ export class AudioQueue {
     const audio = this.queue[this.currentIndex];
     
     return new Promise((resolve) => {
-      audio.onended = () => {
+      let advanced = false;
+      const advance = (withGap: boolean) => {
+        if (advanced) return; // never advance twice for the same clip
+        advanced = true;
         this.currentIndex++;
-        this.playNext().then(resolve);
+        if (withGap && this.gapMs > 0 && this.currentIndex < this.queue.length) {
+          setTimeout(() => { this.playNext().then(resolve); }, this.gapMs);
+        } else {
+          this.playNext().then(resolve);
+        }
       };
-      
+
+      audio.onended = () => advance(true);
+
       audio.onerror = (error) => {
         console.error('Audio playback error:', error);
-        this.currentIndex++;
-        this.playNext().then(resolve);
+        advance(false);
       };
-      
+
       audio.play().catch((error) => {
         console.error('Audio play error:', error);
-        this.currentIndex++;
-        this.playNext().then(resolve);
+        advance(false);
       });
     });
+
   }
 
   stop(): void {

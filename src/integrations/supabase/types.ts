@@ -657,6 +657,7 @@ export type Database = {
           khmer_provider: string
           kiritts_chinese_voice: string
           kiritts_english_voice: string
+          kiritts_khmer_speed: number
           kiritts_khmer_voice: string
           singleton_key: boolean
           updated_at: string
@@ -667,6 +668,7 @@ export type Database = {
           khmer_provider?: string
           kiritts_chinese_voice?: string
           kiritts_english_voice?: string
+          kiritts_khmer_speed?: number
           kiritts_khmer_voice?: string
           singleton_key?: boolean
           updated_at?: string
@@ -677,6 +679,7 @@ export type Database = {
           khmer_provider?: string
           kiritts_chinese_voice?: string
           kiritts_english_voice?: string
+          kiritts_khmer_speed?: number
           kiritts_khmer_voice?: string
           singleton_key?: boolean
           updated_at?: string

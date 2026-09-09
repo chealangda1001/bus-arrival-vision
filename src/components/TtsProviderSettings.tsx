@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { Volume2, Loader2, RefreshCw } from "lucide-react";
 import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ export default function TtsProviderSettings() {
   const { toast } = useToast();
   const [provider, setProvider] = useState<'gemini' | 'kiritts'>('gemini');
   const [khmerVoice, setKhmerVoice] = useState('Kiri');
+  const [khmerSpeed, setKhmerSpeed] = useState(0.9);
   const [voices, setVoices] = useState<KiriVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,8 +31,10 @@ export default function TtsProviderSettings() {
     if (settings) {
       setProvider(settings.khmer_provider);
       setKhmerVoice(settings.kiritts_khmer_voice || 'Kiri');
+      setKhmerSpeed(Number(settings.kiritts_khmer_speed ?? 0.9));
     }
   }, [settings]);
+
 
   const loadVoices = async () => {
     setLoadingVoices(true);
@@ -66,6 +70,7 @@ export default function TtsProviderSettings() {
     const ok = await updateSettings({
       khmer_provider: provider,
       kiritts_khmer_voice: khmerVoice,
+      kiritts_khmer_speed: khmerSpeed,
     });
     setSaving(false);
     toast({
@@ -147,6 +152,33 @@ export default function TtsProviderSettings() {
             </p>
           </div>
         )}
+
+        {provider === 'kiritts' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Khmer speaking speed</Label>
+              <Badge variant="outline">{khmerSpeed.toFixed(2)}x</Badge>
+            </div>
+            <Slider
+              min={0.7}
+              max={1.2}
+              step={0.05}
+              value={[khmerSpeed]}
+              onValueChange={(v) => setKhmerSpeed(Number(v[0].toFixed(2)))}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Slower (0.70x)</span>
+              <span>Normal (1.00x)</span>
+              <span>Faster (1.20x)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Lower this if listeners say the Khmer voice sounds rushed. Changing the speed regenerates the
+              audio once, then it is cached again.
+            </p>
+          </div>
+        )}
+
+
 
         <Button onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}

@@ -83,9 +83,11 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
   const stats = useMemo(() => {
     const counts = { client_hit: 0, storage_hit: 0, generated: 0, error: 0 } as Record<string, number>;
     const genPerHash = new Map<string, number>();
+    let billedChars = 0;
     for (const l of logs) {
       counts[l.cache_result] = (counts[l.cache_result] || 0) + 1;
       if (l.cache_result === "generated") {
+        billedChars += l.char_count || 0;
         const key = `${l.script_hash || l.cache_key || l.script_text}`;
         genPerHash.set(key, (genPerHash.get(key) || 0) + 1);
       }
@@ -99,9 +101,27 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
       error: counts.error,
       total: logs.length,
       duplicateGenerations,
+      billedChars,
       hitRate: Math.round(((counts.client_hit + counts.storage_hit) / total) * 100),
     };
   }, [logs]);
+
+  // Which trips are costing the most (billed generations only).
+  const topTrips = useMemo(() => {
+    const map = new Map<string, { destination: string; plate: string; generations: number; chars: number }>();
+    for (const l of logs) {
+      if (l.cache_result !== "generated") continue;
+      const destination = l.destination || "—";
+      const plate = l.plate_number || "—";
+      const key = `${destination}|${plate}`;
+      const row = map.get(key) || { destination, plate, generations: 0, chars: 0 };
+      row.generations += 1;
+      row.chars += l.char_count || 0;
+      map.set(key, row);
+    }
+    return Array.from(map.values()).sort((a, b) => b.generations - a.generations).slice(0, 8);
+  }, [logs]);
+
 
   return (
     <div className="space-y-6">
@@ -112,7 +132,12 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Generated (billed)</CardDescription></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{stats.generated}</p></CardContent>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.generated}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats.billedChars.toLocaleString()} characters charged
+            </p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Repeat generations of same script</CardDescription></CardHeader>
@@ -126,6 +151,39 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
           <CardContent><p className="text-3xl font-bold">{stats.total}</p></CardContent>
         </Card>
       </div>
+
+      {topTrips.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Trips costing the most voice generation</CardTitle>
+            <CardDescription>Trips whose announcements were newly recorded (and therefore charged).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Destination</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead className="text-right">New recordings</TableHead>
+                  <TableHead className="text-right">Characters</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topTrips.map((t) => (
+                  <TableRow key={`${t.destination}|${t.plate}`}>
+                    <TableCell className="text-xs font-medium">{t.destination}</TableCell>
+                    <TableCell className="text-xs">{t.plate}</TableCell>
+                    <TableCell className="text-xs text-right">{t.generations}</TableCell>
+                    <TableCell className="text-xs text-right">{t.chars.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
