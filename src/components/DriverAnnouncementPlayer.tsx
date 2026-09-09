@@ -8,6 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOperatorSettings } from "@/hooks/useOperatorSettings";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { audioCache, AudioQueue, generateScriptHash } from "@/utils/audioCache";
+import {
+  splitTemplate,
+  resolveSegmentsAudio,
+  type SegmentVoiceContext,
+} from "@/utils/announcementSegments";
 import { useToast } from "@/components/ui/use-toast";
 import { formatTimeWithKhmerPeriods, formatTimeEnglish, formatTimeChinese } from "@/utils/timeFormatter";
 import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
