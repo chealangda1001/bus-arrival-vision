@@ -9,6 +9,13 @@ import { useOperatorSettings } from "@/hooks/useOperatorSettings";
 import { useAnnouncementTypes } from "@/hooks/useAnnouncementTypes";
 import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
 import { audioCache, AudioQueue, checkCacheStatus, generateScriptHash } from "@/utils/audioCache";
+import {
+  splitTemplate,
+  areSegmentsCached,
+  resolveSegmentsAudio,
+  clearSegments,
+  type SegmentVoiceContext,
+} from "@/utils/announcementSegments";
 import { useToast } from "@/components/ui/use-toast";
 import { 
   formatAnnouncementScript, 
