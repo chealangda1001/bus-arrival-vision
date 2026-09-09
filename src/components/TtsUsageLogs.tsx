@@ -132,7 +132,12 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Generated (billed)</CardDescription></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{stats.generated}</p></CardContent>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.generated}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats.billedChars.toLocaleString()} characters charged
+            </p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Repeat generations of same script</CardDescription></CardHeader>
