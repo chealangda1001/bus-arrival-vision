@@ -205,8 +205,7 @@ export default function DriverAnnouncementPlayer({
     try {
       setSingleGenLang(lang);
       const audio = await generateAudio(lang);
-      if (!audio) {
-        toast({ title: "No audio", description: `No template for ${LANG_LABELS[lang].name}`, variant: "destructive" });
+      if (audio.length === 0) {
         setSingleGenLang(null);
         return;
       }
