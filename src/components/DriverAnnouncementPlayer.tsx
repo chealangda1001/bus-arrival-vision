@@ -182,6 +182,7 @@ export default function DriverAnnouncementPlayer({
           if (abortRef.current) return;
           const audio = audioMap[lang];
           if (!audio || audio.length === 0) continue;
+          setCurrentLang(lang);
           await playAudioAndWait(audio);
           if (abortRef.current) return;
           await new Promise(r => setTimeout(r, 500));
