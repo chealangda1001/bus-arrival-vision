@@ -210,30 +210,31 @@ export class AudioQueue {
     const audio = this.queue[this.currentIndex];
     
     return new Promise((resolve) => {
-      const advance = () => {
+      let advanced = false;
+      const advance = (withGap: boolean) => {
+        if (advanced) return; // never advance twice for the same clip
+        advanced = true;
         this.currentIndex++;
-        if (this.gapMs > 0 && this.currentIndex < this.queue.length) {
+        if (withGap && this.gapMs > 0 && this.currentIndex < this.queue.length) {
           setTimeout(() => { this.playNext().then(resolve); }, this.gapMs);
         } else {
           this.playNext().then(resolve);
         }
       };
 
-      audio.onended = () => advance();
+      audio.onended = () => advance(true);
 
-      
       audio.onerror = (error) => {
         console.error('Audio playback error:', error);
-        this.currentIndex++;
-        this.playNext().then(resolve);
+        advance(false);
       };
-      
+
       audio.play().catch((error) => {
         console.error('Audio play error:', error);
-        this.currentIndex++;
-        this.playNext().then(resolve);
+        advance(false);
       });
     });
+
   }
 
   stop(): void {
