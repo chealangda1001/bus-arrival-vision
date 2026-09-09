@@ -351,23 +351,11 @@ export default function AnnouncementSystem({
 
   const clearSpecificCache = async () => {
     if (!departure || !operatorId) return;
-    
-    const scriptHash = generateScriptHash(script);
-    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
-    const englishText = generateAnnouncementText(script.english, departure, 'english');
-    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
-    
-    // Clear cache for all languages for this departure
-    const khmerKey = `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
-    const englishKey = `english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`;
-    const chineseKey = `chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`;
-    
-    await Promise.all([
-      audioCache.delete(khmerKey),
-      audioCache.delete(englishKey),
-      audioCache.delete(chineseKey)
-    ]);
-    
+
+    for (const lang of ['khmer', 'english', 'chinese'] as const) {
+      await clearSegments(segmentsFor(lang), voiceCtx(lang));
+    }
+
     console.log('🗑️ Cleared cache for current departure');
     toast({
       title: "Cache Cleared",
@@ -378,40 +366,29 @@ export default function AnnouncementSystem({
 
   const forceRegenerate = async () => {
     if (!departure || !operatorId || isPlaying) return;
-    
+
     console.log('🔄 Force regenerating all audio...');
     await clearSpecificCache();
-    
-    // Play announcement with force refresh
-    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
-    const englishText = generateAnnouncementText(script.english, departure, 'english');
-    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
-    
+
     try {
       setIsPlaying(true);
       setIsGenerating(true);
 
-      // Force regenerate all languages (skip empty templates)
-      if (khmerText.trim()) {
-        console.log('🔄 Force regenerating Khmer...');
-        await generateDirectKhmerTTS(khmerText, true);
-      } else {
-        console.log('⏭️ Skipping Khmer regeneration - empty template');
+      for (const lang of ['khmer', 'english', 'chinese'] as const) {
+        if (segmentsFor(lang).length === 0) {
+          console.log(`⏭️ Skipping ${lang} regeneration - empty template`);
+          continue;
+        }
+        console.log(`🔄 Force regenerating ${lang}...`);
+        await generateLanguageAudio(lang, true);
       }
-      
-      if (englishText.trim()) {
-        console.log('🔄 Force regenerating English...');
-        await generateDirectTTS(englishText, 'english', true);
-      } else {
-        console.log('⏭️ Skipping English regeneration - empty template');
-      }
-      
-      if (chineseText.trim()) {
-        console.log('🔄 Force regenerating Chinese...');
-        await generateDirectTTS(chineseText, 'chinese', true);
-      } else {
-        console.log('⏭️ Skipping Chinese regeneration - empty template');
-      }
+
+      console.log('✅ Force regeneration complete');
+      toast({
+        title: "Audio Regenerated",
+        description: "All audio files have been regenerated successfully.",
+      });
+
 
       console.log('✅ Force regeneration complete');
       toast({
