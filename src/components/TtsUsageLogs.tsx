@@ -152,6 +152,39 @@ export default function TtsUsageLogs({ operatorId, isSuperAdmin = false }: Props
         </Card>
       </div>
 
+      {topTrips.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Trips costing the most voice generation</CardTitle>
+            <CardDescription>Trips whose announcements were newly recorded (and therefore charged).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Destination</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead className="text-right">New recordings</TableHead>
+                  <TableHead className="text-right">Characters</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topTrips.map((t) => (
+                  <TableRow key={`${t.destination}|${t.plate}`}>
+                    <TableCell className="text-xs font-medium">{t.destination}</TableCell>
+                    <TableCell className="text-xs">{t.plate}</TableCell>
+                    <TableCell className="text-xs text-right">{t.generations}</TableCell>
+                    <TableCell className="text-xs text-right">{t.chars.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <div>
