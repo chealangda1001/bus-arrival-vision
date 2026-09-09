@@ -167,11 +167,11 @@ export default function DriverAnnouncementPlayer({
 
     try {
       // Pre-generate all
-      const audioMap: Partial<Record<Language, string>> = {};
+      const audioMap: Partial<Record<Language, string[]>> = {};
       for (const lang of languages) {
         if (abortRef.current) return;
-        const audio = await generateAudio(lang);
-        if (audio) audioMap[lang] = audio;
+        const clips = await generateAudio(lang);
+        if (clips.length > 0) audioMap[lang] = clips;
       }
 
       setFullPlayStatus('playing');
