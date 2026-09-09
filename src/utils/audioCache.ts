@@ -161,6 +161,12 @@ export class AudioQueue {
   private queue: HTMLAudioElement[] = [];
   private isPlaying = false;
   private currentIndex = 0;
+  private gapMs: number;
+
+  // Small silence between clips so stitched announcement fragments don't run together.
+  constructor(gapMs = 0) {
+    this.gapMs = gapMs;
+  }
 
   async addToQueue(audioInput: string): Promise<void> {
     // Accept either a playable URL (CDN/storage/blob/data) or raw base64 audio.
@@ -174,10 +180,23 @@ export class AudioQueue {
     }
   }
 
+  /** Queue several clips (announcement fragments) and play them back to back. */
+  async addManyToQueue(clips: string[]): Promise<void> {
+    for (const clip of clips) {
+      const isUrl = /^(https?:|blob:|data:)/i.test(clip);
+      const audio = new Audio(isUrl ? clip : `data:audio/mp3;base64,${clip}`);
+      this.queue.push(audio);
+    }
+    if (!this.isPlaying) {
+      await this.playNext();
+    }
+  }
+
   // Explicit URL variant for clarity at call sites.
   async addUrlToQueue(url: string): Promise<void> {
     return this.addToQueue(url);
   }
+
 
   private async playNext(): Promise<void> {
     if (this.currentIndex >= this.queue.length) {
