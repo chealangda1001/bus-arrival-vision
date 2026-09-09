@@ -173,7 +173,7 @@ export default function DriverAnnouncementPlayer({
     if (!operatorId) return;
     abortRef.current = false;
     setFullPlayStatus('generating');
-    const languages: Language[] = ['khmer', 'english', 'chinese'];
+    const languages: Language[] = enabledLanguages;
 
     try {
       // Pre-generate all
@@ -295,7 +295,7 @@ export default function DriverAnnouncementPlayer({
 
       {/* Language rows */}
       <div className="divide-y divide-border">
-        {(['khmer', 'english', 'chinese'] as Language[]).map(lang => {
+        {enabledLanguages.map(lang => {
           const label = LANG_LABELS[lang];
           const isCurrentFullPlay = currentLang === lang && fullPlayStatus === 'playing';
           const isSinglePlaying = singlePlayingLang === lang;
