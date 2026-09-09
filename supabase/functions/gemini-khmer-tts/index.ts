@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
-import { logTtsRequest } from '../_shared/ttsLog.ts'
+import { logTtsRequest, recordClip, clipStoragePath } from '../_shared/ttsLog.ts'
 
 // ---- Shared TTS storage helpers (reduce egress by serving audio from a public bucket) ----
 const TTS_BUCKET = 'tts-audio';
@@ -58,6 +58,7 @@ interface KhmerTTSRequest {
   text: string;
   operatorId: string;
   cacheKey?: string;
+  segmentKind?: string;
   branchId?: string;
   departureId?: string;
   destination?: string;
@@ -320,7 +321,7 @@ serve(async (req) => {
 
     // Generate cache key
     const cacheKey = request.cacheKey || `gemini_khmer_${btoa(request.text)}_${request.operatorId}`;
-    const storagePath = `${request.operatorId}/khmer_${await hashKey(cacheKey)}.wav`;
+    const storagePath = clipStoragePath('khmer', 'Zephyr', await hashKey(cacheKey), 'wav');
 
     logBase = {
       provider: 'gemini',
@@ -344,6 +345,7 @@ serve(async (req) => {
     if (cachedUrl) {
       console.log('✅ Serving cached Khmer audio from storage:', storagePath);
       await logTtsRequest(req, { ...logBase, cacheResult: 'storage_hit', durationMs: Date.now() - startedAt });
+      await recordClip({ cacheKey, language: 'khmer', provider: 'gemini', voice: 'Zephyr', speed: 1.0, text: request.text, segmentKind: request.segmentKind, storagePath, generated: false });
       return new Response(JSON.stringify({
         audioUrl: cachedUrl,
         cached: true,
@@ -376,6 +378,7 @@ serve(async (req) => {
     };
 
     await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+    await recordClip({ cacheKey, language: 'khmer', provider: 'gemini', voice: 'Zephyr', speed: 1.0, text: request.text, segmentKind: request.segmentKind, storagePath, generated: true });
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

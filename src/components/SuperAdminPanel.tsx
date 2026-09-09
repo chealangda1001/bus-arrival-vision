@@ -18,6 +18,7 @@ import AnnouncementSystem from "./AnnouncementSystem";
 import { TranslationManagement } from "./TranslationManagement";
 import TtsProviderSettings from "./TtsProviderSettings";
 import TtsUsageLogs from "./TtsUsageLogs";
+import TtsClipLibrary from "./TtsClipLibrary";
 
 const SuperAdminPanel = () => {
   const { user } = useSupabaseAuth();
@@ -1900,6 +1901,7 @@ const SuperAdminPanel = () => {
 
         <TabsContent value="tts-logs" className="space-y-6">
           <TtsUsageLogs isSuperAdmin />
+          <TtsClipLibrary />
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">

@@ -24,6 +24,7 @@ import BulkUploadDepartures from "./BulkUploadDepartures";
 import DriverManagement from "./DriverManagement";
 import BranchUserManagement from "./BranchUserManagement";
 import TtsUsageLogs from "./TtsUsageLogs";
+import TtsClipLibrary from "./TtsClipLibrary";
 
 interface AdminPanelProps {
   branchId?: string;
@@ -635,6 +636,7 @@ const AdminPanel = ({ branchId, operatorId, userBranchId }: AdminPanelProps) => 
 
         <TabsContent value="tts-logs" className="space-y-6">
           <TtsUsageLogs operatorId={operatorId} />
+          <TtsClipLibrary />
         </TabsContent>
 
         

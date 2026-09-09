@@ -131,7 +131,8 @@ export async function clearSegments(
 async function generateSegment(
   text: string,
   cacheKey: string,
-  opts: ResolveOptions
+  opts: ResolveOptions,
+  kind: SegmentKind = 'static'
 ): Promise<string> {
   const { ctx, operatorId, logContext = {} } = opts;
 
@@ -152,13 +153,14 @@ async function generateSegment(
           speed: ctx.speed,
           language: 'khmer',
           cacheKey,
+          segmentKind: kind,
           scriptHash: opts.scriptHash,
           ...logContext,
         },
       }));
     } else if (ctx.language === 'khmer') {
       ({ data, error } = await supabase.functions.invoke('gemini-khmer-tts', {
-        body: { text, operatorId, cacheKey, scriptHash: opts.scriptHash, ...logContext },
+        body: { text, operatorId, cacheKey, segmentKind: kind, scriptHash: opts.scriptHash, ...logContext },
       }));
     } else {
       ({ data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
@@ -168,6 +170,7 @@ async function generateSegment(
           speechRate: ctx.speed,
           pitchAdjustment: 0,
           cacheKey,
+          segmentKind: kind,
           scriptHash: opts.scriptHash,
           language: ctx.language,
           voice: ctx.voice,
@@ -175,6 +178,7 @@ async function generateSegment(
         },
       }));
     }
+
 
     if (error) throw error;
     const audioValue = data?.audioUrl || data?.audioContent;
@@ -222,7 +226,7 @@ export async function resolveSegmentsAudio(
       await audioCache.delete(key);
     }
 
-    clips.push(await generateSegment(seg.text, key, opts));
+    clips.push(await generateSegment(seg.text, key, opts, seg.kind));
   }
 
   return clips;

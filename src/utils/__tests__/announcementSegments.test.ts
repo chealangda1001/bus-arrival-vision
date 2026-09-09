@@ -114,3 +114,13 @@ describe("announcement segmentation", () => {
     expect(slow).not.toBe(normal);
   });
 });
+
+describe('language scoping', () => {
+  it('gives the same wording a different clip per language', async () => {
+    const base = { provider: 'gemini', voice: 'Kore', speed: 1 } as const;
+    const kh = await segmentCacheKey('Siem Reap', { ...base, language: 'khmer' });
+    const en = await segmentCacheKey('Siem Reap', { ...base, language: 'english' });
+    const zh = await segmentCacheKey('Siem Reap', { ...base, language: 'chinese' });
+    expect(new Set([kh, en, zh]).size).toBe(3);
+  });
+});

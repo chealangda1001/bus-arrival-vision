@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
-import { logTtsRequest } from '../_shared/ttsLog.ts';
+import { logTtsRequest, recordClip, clipStoragePath } from '../_shared/ttsLog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -441,7 +441,8 @@ serve(async (req) => {
       throw new Error('No valid speech segments found in script');
     }
 
-    // Generate cache key (Unicode-safe)
+    // Clip identity: prefer the language-scoped key the app sends, so English and
+    // Chinese never share one stored file even when the wording matches.
     const keyData = {
       script,
       speechRate: speechRate || 1.0,
@@ -449,12 +450,13 @@ serve(async (req) => {
       temperature: temperature || 0.7,
       styleInstructions: styleInstructions || DEFAULT_STYLE_INSTRUCTIONS
     };
-    
+
     const encoder = new TextEncoder();
     const data = encoder.encode(JSON.stringify(keyData));
     const base64 = btoa(String.fromCharCode(...Array.from(data)));
-    const cacheKey = base64.replace(/[+/=]/g, '');
-    const storagePath = `${operatorId || 'shared'}/multi_${await hashKey(cacheKey)}.mp3`;
+    const cacheKey = body.cacheKey || base64.replace(/[+/=]/g, '');
+    const clipLanguage = body.language || 'mixed';
+    const storagePath = clipStoragePath(clipLanguage, body.voice || null, await hashKey(cacheKey), 'mp3');
 
     logBase = {
       provider: 'google_multispeaker',
@@ -478,6 +480,7 @@ serve(async (req) => {
     if (cachedUrl) {
       console.log('✅ Serving cached multi-speaker audio from storage:', storagePath);
       await logTtsRequest(req, { ...logBase, cacheResult: 'storage_hit', durationMs: Date.now() - startedAt });
+      await recordClip({ cacheKey, language: clipLanguage, provider: 'google_multispeaker', voice: body.voice || null, speed: speechRate || 1.0, text: script, segmentKind: body.segmentKind, storagePath, generated: false });
       return new Response(JSON.stringify({
         audioUrl: cachedUrl,
         cached: true,
@@ -502,6 +505,7 @@ serve(async (req) => {
     const audioUrl = await uploadAudioToStorage(storagePath, audioData, 'audio/mpeg');
 
     await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+    await recordClip({ cacheKey, language: clipLanguage, provider: 'google_multispeaker', voice: body.voice || null, speed: speechRate || 1.0, text: script, segmentKind: body.segmentKind, storagePath, generated: true });
 
     return new Response(JSON.stringify({ 
       audioUrl,
