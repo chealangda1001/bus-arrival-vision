@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { Volume2, Loader2, RefreshCw } from "lucide-react";
 import { useSystemTtsSettings } from "@/hooks/useSystemTtsSettings";
 import { supabase } from "@/integrations/supabase/client";
