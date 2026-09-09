@@ -299,53 +299,33 @@ export default function AnnouncementSystem({
       
       for (let repeat = 1; repeat <= announceRepeatCount; repeat++) {
         setCurrentRepeat(repeat);
-        
-        // Play Khmer first using native Google Cloud TTS (skip if empty)
-        if (khmerText.trim()) {
-          setCurrentLanguage('khmer');
-          console.log('🎯 Playing Khmer announcement...');
-          const khmerAudio = await generateDirectKhmerTTS(khmerText, false);
-          await audioQueueRef.current.addToQueue(khmerAudio);
+
+        for (const lang of ['khmer', 'english', 'chinese'] as const) {
+          const text = lang === 'khmer' ? khmerText : lang === 'english' ? englishText : chineseText;
+          if (!text.trim()) {
+            console.log(`⏭️ Skipping ${lang} - empty template`);
+            continue;
+          }
+
+          setCurrentLanguage(lang);
+          const clips = await generateLanguageAudio(lang, false);
+          if (clips.length === 0) continue;
+
+          await audioQueueRef.current.addManyToQueue(clips);
           while (audioQueueRef.current.playing) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
-          await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
-        } else {
-          console.log('⏭️ Skipping Khmer - empty template');
-        }
-        
-        // Play English second (skip if empty)
-        if (englishText.trim()) {
-          setCurrentLanguage('english');
-          console.log('🎯 Playing English announcement...');
-          const englishAudio = await generateDirectTTS(englishText, 'english', false);
-          await audioQueueRef.current.addToQueue(englishAudio);
-          while (audioQueueRef.current.playing) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+          if (lang !== 'chinese') {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
           }
-          await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
-        } else {
-          console.log('⏭️ Skipping English - empty template');
         }
-        
-        // Play Chinese third (skip if empty)
-        if (chineseText.trim()) {
-          setCurrentLanguage('chinese');
-          console.log('🎯 Playing Chinese announcement...');
-          const chineseAudio = await generateDirectTTS(chineseText, 'chinese', false);
-          await audioQueueRef.current.addToQueue(chineseAudio);
-          while (audioQueueRef.current.playing) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        } else {
-          console.log('⏭️ Skipping Chinese - empty template');
-        }
-        
+
         // Pause between repeats (except after the last one)
         if (repeat < announceRepeatCount) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
+
       
     } catch (error) {
       console.error('Error playing announcement:', error);
