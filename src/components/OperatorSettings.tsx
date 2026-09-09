@@ -333,6 +333,21 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
               
               {(['khmer', 'english', 'chinese'] as const).map((language) => (
                 <TabsContent key={language} value={language} className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-accent/5 rounded-lg border">
+                    <div className="space-y-1">
+                      <Label htmlFor={`enable-${language}`}>Enabled</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {settings.voice_settings[language]?.enabled === false
+                          ? 'This language is paused. No audio will be played or generated.'
+                          : 'This language will be played and generated with announcements.'}
+                      </p>
+                    </div>
+                    <Switch
+                      id={`enable-${language}`}
+                      checked={settings.voice_settings[language]?.enabled !== false}
+                      onCheckedChange={(checked) => handleVoiceSettingUpdate(language, 'enabled', checked)}
+                    />
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-accent/5 rounded-lg border">
                     <div className="space-y-2">
                       <Label>Voice Model</Label>
