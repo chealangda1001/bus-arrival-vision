@@ -318,7 +318,7 @@ export default function AnnouncementSystem({
       for (let repeat = 1; repeat <= announceRepeatCount; repeat++) {
         setCurrentRepeat(repeat);
 
-        for (const lang of ['khmer', 'english', 'chinese'] as const) {
+        for (const lang of enabledLanguages) {
           const text = lang === 'khmer' ? khmerText : lang === 'english' ? englishText : chineseText;
           if (!text.trim()) {
             console.log(`⏭️ Skipping ${lang} - empty template`);
@@ -333,7 +333,7 @@ export default function AnnouncementSystem({
           while (audioQueueRef.current.playing) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
-          if (lang !== 'chinese') {
+          if (lang !== enabledLanguages[enabledLanguages.length - 1]) {
             await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
           }
         }
