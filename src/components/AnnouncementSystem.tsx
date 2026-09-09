@@ -188,22 +188,31 @@ export default function AnnouncementSystem({
     return splitTemplate(script[language], placeholderValues(departure, language));
   };
 
-  // Check cache status for all languages (skip empty templates)
+  // Languages the operator has switched on. Disabled ones are never played
+  // and never sent to the TTS provider.
+  const enabledLanguages = (['khmer', 'english', 'chinese'] as const).filter(
+    (lang) => settings?.voice_settings?.[lang]?.enabled !== false
+  );
+
+  // Check cache status for enabled languages (skip empty templates)
   const checkAllCacheStatus = async () => {
     if (!departure || !operatorId) return;
 
-    const langs = ['khmer', 'english', 'chinese'] as const;
-    const results = await Promise.all(
-      langs.map(async (lang) => {
+    const results: Record<string, 'cached' | 'missing'> = {};
+    await Promise.all(
+      enabledLanguages.map(async (lang) => {
         const segments = segmentsFor(lang);
-        if (segments.length === 0) return 'missing' as const;
+        if (segments.length === 0) {
+          results[lang] = 'missing';
+          return;
+        }
         const cached = await areSegmentsCached(segments, voiceCtx(lang));
-        return cached ? ('cached' as const) : ('missing' as const);
+        results[lang] = cached ? 'cached' : 'missing';
       })
     );
 
-    setCacheStatus({ khmer: results[0], english: results[1], chinese: results[2] });
-    console.log('Cache status check (segmented):', { khmer: results[0], english: results[1], chinese: results[2] });
+    setCacheStatus(prev => ({ ...prev, ...results }));
+    console.log('Cache status check (segmented):', results);
   };
 
   /**
@@ -256,10 +265,11 @@ export default function AnnouncementSystem({
       
       console.log("Generated texts:", { khmerText, englishText, chineseText });
 
-      // Check for uploaded MP3 files first
-      const hasUploadedKhmer = departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
-      const hasUploadedEnglish = departure.english_audio_url && typeof departure.english_audio_url === 'string';
-      const hasUploadedChinese = departure.chinese_audio_url && typeof departure.chinese_audio_url === 'string';
+      // Check for uploaded MP3 files first (disabled languages are skipped)
+      const isOn = (lang: 'khmer' | 'english' | 'chinese') => enabledLanguages.includes(lang);
+      const hasUploadedKhmer = isOn('khmer') && departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
+      const hasUploadedEnglish = isOn('english') && departure.english_audio_url && typeof departure.english_audio_url === 'string';
+      const hasUploadedChinese = isOn('chinese') && departure.chinese_audio_url && typeof departure.chinese_audio_url === 'string';
       
       // Play in sequence: Khmer, English, Chinese
       const playUploadedAudio = async (audioUrl: string, language: 'khmer' | 'english' | 'chinese') => {
@@ -308,7 +318,7 @@ export default function AnnouncementSystem({
       for (let repeat = 1; repeat <= announceRepeatCount; repeat++) {
         setCurrentRepeat(repeat);
 
-        for (const lang of ['khmer', 'english', 'chinese'] as const) {
+        for (const lang of enabledLanguages) {
           const text = lang === 'khmer' ? khmerText : lang === 'english' ? englishText : chineseText;
           if (!text.trim()) {
             console.log(`⏭️ Skipping ${lang} - empty template`);
@@ -323,7 +333,7 @@ export default function AnnouncementSystem({
           while (audioQueueRef.current.playing) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
-          if (lang !== 'chinese') {
+          if (lang !== enabledLanguages[enabledLanguages.length - 1]) {
             await new Promise(resolve => setTimeout(resolve, 500)); // Pause between languages
           }
         }
@@ -382,7 +392,7 @@ export default function AnnouncementSystem({
       setIsPlaying(true);
       setIsGenerating(true);
 
-      for (const lang of ['khmer', 'english', 'chinese'] as const) {
+      for (const lang of enabledLanguages) {
         if (segmentsFor(lang).length === 0) {
           console.log(`⏭️ Skipping ${lang} regeneration - empty template`);
           continue;
@@ -499,7 +509,7 @@ export default function AnnouncementSystem({
       <div className="space-y-3">
         {/* Audio Source Indicators with Cache Status */}
         <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-4">
-          {(['khmer', 'english', 'chinese'] as const).map((lang) => {
+          {enabledLanguages.map((lang, langIndex) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
             const langCacheStatus = cacheStatus[lang];
@@ -528,8 +538,7 @@ export default function AnnouncementSystem({
               <div key={lang} className="text-center">
                 <div className={`px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${getCacheColor()}`}>
                   {getCacheIcon()}
-                  {lang === 'khmer' ? 'KHMER (1st)' :
-                   lang === 'english' ? 'ENGLISH (2nd)' : 'CHINESE (3rd)'}
+                  {`${lang.toUpperCase()} (${['1st', '2nd', '3rd'][langIndex] ?? `${langIndex + 1}th`})`}
                 </div>
                 <div className="text-xs text-text-display/60 mt-1">
                   {hasCustomAudio ? 'Custom MP3' : 
@@ -566,18 +575,14 @@ export default function AnnouncementSystem({
             </div>
             {currentLanguage === 'multi' ? (
               <div className="space-y-2">
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Zephyr - Khmer]</span><br />
-                  {generateAnnouncementText(script.khmer, departure, 'khmer')}
-                </div>
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Kore - English]</span><br />
-                  {generateAnnouncementText(script.english, departure, 'english')}
-                </div>
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Luna - Chinese]</span><br />
-                  {generateAnnouncementText(script.chinese, departure, 'chinese')}
-                </div>
+                {enabledLanguages.map((lang) => (
+                  <div key={lang} className="text-text-display">
+                    <span className="text-xs text-primary font-medium">
+                      {lang === 'khmer' ? '[Zephyr - Khmer]' : lang === 'english' ? '[Kore - English]' : '[Luna - Chinese]'}
+                    </span><br />
+                    {generateAnnouncementText(script[lang], departure, lang)}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-text-display">

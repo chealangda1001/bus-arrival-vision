@@ -71,6 +71,11 @@ export default function DriverAnnouncementPlayer({
   };
   const repeatCount = typeConfig?.repeat_count || settings?.announcement_repeat_count || 3;
 
+  // Languages the operator has switched on; disabled ones never play or generate.
+  const enabledLanguages = (['khmer', 'english', 'chinese'] as Language[]).filter(
+    (lang) => settings?.voice_settings?.[lang]?.enabled !== false
+  );
+
   const generateText = (template: string, lang: Language) => {
     let text = template;
     let formattedTime = departure.departure_time;
@@ -168,7 +173,7 @@ export default function DriverAnnouncementPlayer({
     if (!operatorId) return;
     abortRef.current = false;
     setFullPlayStatus('generating');
-    const languages: Language[] = ['khmer', 'english', 'chinese'];
+    const languages: Language[] = enabledLanguages;
 
     try {
       // Pre-generate all
@@ -290,7 +295,7 @@ export default function DriverAnnouncementPlayer({
 
       {/* Language rows */}
       <div className="divide-y divide-border">
-        {(['khmer', 'english', 'chinese'] as Language[]).map(lang => {
+        {enabledLanguages.map(lang => {
           const label = LANG_LABELS[lang];
           const isCurrentFullPlay = currentLang === lang && fullPlayStatus === 'playing';
           const isSinglePlaying = singlePlayingLang === lang;
