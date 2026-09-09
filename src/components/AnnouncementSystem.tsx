@@ -575,18 +575,14 @@ export default function AnnouncementSystem({
             </div>
             {currentLanguage === 'multi' ? (
               <div className="space-y-2">
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Zephyr - Khmer]</span><br />
-                  {generateAnnouncementText(script.khmer, departure, 'khmer')}
-                </div>
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Kore - English]</span><br />
-                  {generateAnnouncementText(script.english, departure, 'english')}
-                </div>
-                <div className="text-text-display">
-                  <span className="text-xs text-primary font-medium">[Luna - Chinese]</span><br />
-                  {generateAnnouncementText(script.chinese, departure, 'chinese')}
-                </div>
+                {enabledLanguages.map((lang) => (
+                  <div key={lang} className="text-text-display">
+                    <span className="text-xs text-primary font-medium">
+                      {lang === 'khmer' ? '[Zephyr - Khmer]' : lang === 'english' ? '[Kore - English]' : '[Luna - Chinese]'}
+                    </span><br />
+                    {generateAnnouncementText(script[lang], departure, lang)}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-text-display">
