@@ -87,90 +87,76 @@ export default function DriverAnnouncementPlayer({
     return text;
   };
 
-  const generateAudio = async (lang: Language): Promise<string | null> => {
-    const template = script[lang as keyof typeof script] as string;
-    if (!template?.trim()) return null;
-    const text = generateText(template, lang);
-    if (!text.trim()) return null;
+  const placeholderValues = (lang: Language): Record<string, string> => {
+    const formattedTime =
+      lang === 'khmer' ? formatTimeWithKhmerPeriods(departure.departure_time)
+      : lang === 'english' ? formatTimeEnglish(departure.departure_time)
+      : formatTimeChinese(departure.departure_time);
 
-    const scriptHash = generateScriptHash(script as any);
-
-    if (lang === 'khmer') {
-      // Use the same provider + cache key scheme as the board so audio is shared, not regenerated.
-      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
-      const provider = useKiriTTS ? 'kiritts' : 'gemini';
-      const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
-      const cacheKey = useKiriTTS
-        ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`
-        : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
-
-      const cached = await audioCache.get(cacheKey);
-      if (cached) {
-        void logTtsEvent({
-          ...logContext(), language: 'khmer', provider,
-          voice: useKiriTTS ? kiriVoice : 'Zephyr',
-          scriptText: text, scriptHash, cacheKey, cacheResult: 'client_hit',
-        });
-        return cached;
-      }
-
-      const { data, error } = useKiriTTS
-        ? await supabase.functions.invoke('kiritts-tts', {
-            body: { text, operatorId, voice: kiriVoice, language: 'khmer', cacheKey, scriptHash, ...logContext() },
-          })
-        : await supabase.functions.invoke('gemini-khmer-tts', {
-            body: { text, operatorId, cacheKey, scriptHash, ...logContext() },
-          });
-      const audioValue = data?.audioUrl || data?.audioContent;
-      if (error || !audioValue) throw error || new Error('No audio');
-      await audioCache.set(cacheKey, audioValue);
-      return audioValue;
-    } else {
-      const cacheKey = `${lang}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
-      const cached = await audioCache.get(cacheKey);
-      if (cached) {
-        void logTtsEvent({
-          ...logContext(), language: lang, provider: 'google_multispeaker',
-          voice: lang === 'english' ? 'Kore' : 'Luna',
-          scriptText: text, scriptHash, cacheKey, cacheResult: 'client_hit',
-        });
-        return cached;
-      }
-
-      const voice = lang === 'english' ? 'Kore' : 'Luna';
-      const singleScript = `[Voice: ${voice}] ${text}`;
-      const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
-        body: {
-          script: singleScript,
-          operatorId,
-          speechRate: lang === 'english'
-            ? (settings?.voice_settings?.english?.speed || 1.0)
-            : (settings?.voice_settings?.chinese?.speed || 0.9),
-          pitchAdjustment: lang === 'english'
-            ? (settings?.voice_settings?.english?.pitch || 0)
-            : (settings?.voice_settings?.chinese?.pitch || 0),
-          cacheKey,
-          scriptHash,
-          language: lang,
-          voice,
-          ...logContext(),
-        }
-      });
-      const audioValue = data?.audioUrl || data?.audioContent;
-      if (error || !audioValue) throw error || new Error('No audio');
-      await audioCache.set(cacheKey, audioValue);
-      return audioValue;
-    }
+    return {
+      fleet_type: departure.fleet_type || 'Bus',
+      destination: departure.destination,
+      time: formattedTime,
+      departure_time: formattedTime,
+      plate: departure.plate_number || '',
+      fleet_plate_number: departure.plate_number || '',
+      leaving_from: departure.leaving_from || 'Terminal',
+      trip_duration: departure.trip_duration || 'N/A',
+      break_duration: breakDurationOverride?.toString() || departure.break_duration || 'N/A',
+      operator_name: settings?.operator_name || 'BookMeBus',
+    };
   };
 
-  const playAudioAndWait = async (base64: string) => {
+  // Same voice identity as the board, so both share the exact same recordings.
+  const voiceCtx = (lang: Language): SegmentVoiceContext => {
+    if (lang === 'khmer') {
+      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
+      return {
+        language: 'khmer',
+        provider: useKiriTTS ? 'kiritts' : 'gemini',
+        voice: useKiriTTS ? (ttsSettings?.kiritts_khmer_voice || 'Kiri') : 'Zephyr',
+        speed: useKiriTTS ? Number(ttsSettings?.kiritts_khmer_speed ?? 0.9) : 1.0,
+      };
+    }
+    return {
+      language: lang,
+      provider: 'google_multispeaker',
+      voice: lang === 'english' ? 'Kore' : 'Luna',
+      speed: lang === 'english'
+        ? (settings?.voice_settings?.english?.speed || 1.0)
+        : (settings?.voice_settings?.chinese?.speed || 0.9),
+    };
+  };
+
+  const segmentsFor = (lang: Language) => {
+    const template = script[lang as keyof typeof script] as string;
+    if (!template?.trim()) return [];
+    return splitTemplate(template, placeholderValues(lang));
+  };
+
+  /** Ordered clips for one language, stitched from permanently cached fragments. */
+  const generateAudio = async (lang: Language): Promise<string[]> => {
+    if (!operatorId) return [];
+    const segments = segmentsFor(lang);
+    if (segments.length === 0) return [];
+
+    return resolveSegmentsAudio(segments, {
+      operatorId,
+      ctx: voiceCtx(lang),
+      logContext: logContext(),
+      scriptHash: generateScriptHash(script as any),
+    });
+  };
+
+  const playAudioAndWait = async (clips: string[]) => {
     const queue = audioQueueRef.current;
-    await queue.addToQueue(base64);
+    await queue.addManyToQueue(clips);
     while (queue.playing) {
       if (abortRef.current) { queue.stop(); return; }
       await new Promise(r => setTimeout(r, 100));
     }
   };
+
 
   // Full play: all languages × repeats
   const playAll = async () => {
