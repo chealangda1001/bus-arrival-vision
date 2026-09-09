@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
-import { logTtsRequest } from '../_shared/ttsLog.ts'
+import { logTtsRequest, recordClip, clipStoragePath } from '../_shared/ttsLog.ts'
 
 // ---- Shared TTS storage helpers (serve audio from a public bucket to cut egress) ----
 const TTS_BUCKET = 'tts-audio';
@@ -80,6 +80,7 @@ function isCoolingDown(key: string): boolean {
 interface SegmentRequest {
   text: string;
   cacheKey: string;
+  kind?: string;
 }
 
 interface KiriTTSRequest {
@@ -98,6 +99,7 @@ interface KiriTTSRequest {
   departureTime?: string;
   announcementType?: string;
   scriptHash?: string;
+  segmentKind?: string;
 }
 
 async function callKiriTTS(apiKey: string, text: string, voice: string, speed: number): Promise<Uint8Array> {
@@ -154,7 +156,7 @@ serve(async (req) => {
 
       for (const segment of request.segments!) {
         const segStarted = Date.now();
-        const storagePath = `${request.operatorId}/kiritts_${language}_${await hashKey(segment.cacheKey)}.mp3`;
+        const storagePath = clipStoragePath(language, voice, await hashKey(segment.cacheKey), 'mp3');
         const segLog = {
           provider: 'kiritts',
           operatorId: request.operatorId,
@@ -175,6 +177,7 @@ serve(async (req) => {
         const cachedUrl = await findCachedAudioUrl(storagePath);
         if (cachedUrl) {
           await logTtsRequest(req, { ...segLog, cacheResult: 'storage_hit', durationMs: Date.now() - segStarted });
+          await recordClip({ cacheKey: segment.cacheKey, language, provider: 'kiritts', voice, speed, text: segment.text, segmentKind: segment.kind, storagePath, generated: false });
           results.push({ cacheKey: segment.cacheKey, audioUrl: cachedUrl, cached: true });
           continue;
         }
@@ -188,6 +191,7 @@ serve(async (req) => {
           const bytes = await callKiriTTS(apiKey, segment.text, voice, speed);
           const url = await uploadAudioToStorage(storagePath, bytes, 'audio/mpeg');
           await logTtsRequest(req, { ...segLog, cacheResult: 'generated', durationMs: Date.now() - segStarted });
+          await recordClip({ cacheKey: segment.cacheKey, language, provider: 'kiritts', voice, speed, text: segment.text, segmentKind: segment.kind, storagePath, generated: true });
           results.push({
             cacheKey: segment.cacheKey,
             cached: false,
@@ -213,7 +217,7 @@ serve(async (req) => {
     // ---- Single-text mode ----
     const text = request.text!;
     const cacheKey = request.cacheKey || `kiritts_${language}_${voice}_${speed}_${await hashKey(text)}_${request.operatorId}`;
-    const storagePath = `${request.operatorId}/kiritts_${language}_${await hashKey(cacheKey)}.mp3`;
+    const storagePath = clipStoragePath(language, voice, await hashKey(cacheKey), 'mp3');
 
     logBase = {
       provider: 'kiritts',
@@ -237,6 +241,7 @@ serve(async (req) => {
     if (cachedUrl) {
       console.log('✅ Serving cached KiriTTS audio from storage:', storagePath);
       await logTtsRequest(req, { ...logBase, cacheResult: 'storage_hit', durationMs: Date.now() - startedAt });
+      await recordClip({ cacheKey, language, provider: 'kiritts', voice, speed, text, segmentKind: request.segmentKind, storagePath, generated: false });
       return new Response(JSON.stringify({
         audioUrl: cachedUrl,
         cached: true,
@@ -283,6 +288,7 @@ serve(async (req) => {
     };
 
     await logTtsRequest(req, { ...logBase, cacheResult: 'generated', durationMs: Date.now() - startedAt });
+    await recordClip({ cacheKey, language, provider: 'kiritts', voice, speed, text, segmentKind: request.segmentKind, storagePath, generated: true });
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
