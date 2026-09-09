@@ -87,3 +87,69 @@ export async function logTtsRequest(req: Request, ctx: TtsLogContext): Promise<v
     console.error('tts log failed:', e);
   }
 }
+
+// ---- Reusable clip registry ----
+// One row per stored audio clip, so admins can see what is saved and how often
+// it is replayed instead of re-billed.
+export interface ClipRecord {
+  cacheKey: string;
+  language: string;
+  provider: string;
+  voice?: string | null;
+  speed?: number | null;
+  text: string;
+  segmentKind?: string | null;
+  storagePath?: string | null;
+  /** true = the clip was just generated, false = an existing file was served. */
+  generated: boolean;
+}
+
+export async function recordClip(clip: ClipRecord): Promise<void> {
+  try {
+    const supabase = admin();
+    const { data: existing } = await supabase
+      .from('tts_clips')
+      .select('id, reuse_count')
+      .eq('cache_key', clip.cacheKey)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('tts_clips')
+        .update({
+          reuse_count: clip.generated ? existing.reuse_count : (existing.reuse_count || 0) + 1,
+          last_used_at: new Date().toISOString(),
+          storage_path: clip.storagePath || null,
+        })
+        .eq('id', existing.id);
+      return;
+    }
+
+    await supabase.from('tts_clips').insert({
+      cache_key: clip.cacheKey,
+      language: clip.language,
+      provider: clip.provider,
+      voice: clip.voice || null,
+      speed: clip.speed ?? 1.0,
+      text: clip.text,
+      segment_kind: clip.segmentKind || 'static',
+      storage_path: clip.storagePath || null,
+      char_count: clip.text.length,
+      reuse_count: clip.generated ? 0 : 1,
+      last_used_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('recordClip failed:', e);
+  }
+}
+
+/** Language-scoped storage path so two languages never share one file. */
+export function clipStoragePath(
+  language: string,
+  voice: string | null | undefined,
+  hash: string,
+  ext: 'mp3' | 'wav',
+): string {
+  const safeVoice = (voice || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `clips/${language}/${safeVoice}/${hash}.${ext}`;
+}
