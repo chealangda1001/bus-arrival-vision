@@ -16,11 +16,11 @@ serve(async (req) => {
     if (!rawApiKey) throw new Error('KIRITTS_API_KEY not configured');
     const apiKey = rawApiKey.trim().replace(/^Bearer\s+/i, '');
 
+    // Official endpoint first, older paths kept as fallbacks.
     const voiceEndpoints = [
+      'https://api.kiritts.com/v1/voices',
       'https://www.kiritts.com/api/voices',
       'https://api.kiritts.com/v1/audio/voices',
-      'https://api.kiritts.com/api/voices',
-      'https://api.kiritts.com/api/v1/audio/voices',
     ];
 
     let res: Response | null = null;
@@ -47,7 +47,10 @@ serve(async (req) => {
       ? data
       : Array.isArray(data?.data)
         ? data.data
-        : [];
+        : Array.isArray(data?.voices)
+          ? data.voices
+          : [];
+
 
     return new Response(JSON.stringify({ success: true, voices }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
