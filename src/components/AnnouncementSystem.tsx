@@ -538,8 +538,7 @@ export default function AnnouncementSystem({
               <div key={lang} className="text-center">
                 <div className={`px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${getCacheColor()}`}>
                   {getCacheIcon()}
-                  {lang === 'khmer' ? 'KHMER (1st)' :
-                   lang === 'english' ? 'ENGLISH (2nd)' : 'CHINESE (3rd)'}
+                  {`${lang.toUpperCase()} (${['1st', '2nd', '3rd'][langIndex] ?? `${langIndex + 1}th`})`}
                 </div>
                 <div className="text-xs text-text-display/60 mt-1">
                   {hasCustomAudio ? 'Custom MP3' : 
