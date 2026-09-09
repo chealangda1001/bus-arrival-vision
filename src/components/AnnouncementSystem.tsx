@@ -133,192 +133,106 @@ export default function AnnouncementSystem({
     return announcementText;
   };
 
+  // Values that change per trip. Each becomes its own tiny reusable audio clip.
+  const placeholderValues = (departure: Departure, language: 'english' | 'khmer' | 'chinese') => {
+    const formattedTime =
+      language === 'khmer' ? formatTimeWithKhmerPeriods(departure.departure_time)
+      : language === 'english' ? formatTimeEnglish(departure.departure_time)
+      : formatTimeChinese(departure.departure_time);
+
+    return {
+      fleet_type: departure.fleet_type || 'Bus',
+      destination: departure.destination,
+      time: formattedTime,
+      departure_time: formattedTime,
+      plate: departure.plate_number || '',
+      fleet_plate_number: departure.plate_number || '',
+      leaving_from: departure.leaving_from || 'Terminal',
+      trip_duration: departure.trip_duration || 'N/A',
+      break_duration: breakDurationOverride?.toString() || departure.break_duration || 'N/A',
+      operator_name: settings?.operator_name || 'BookMeBus',
+    } as Record<string, string>;
+  };
+
+  // Voice settings that identify a fragment's audio (change these -> new recording).
+  const voiceCtx = (language: 'english' | 'khmer' | 'chinese'): SegmentVoiceContext => {
+    if (language === 'khmer') {
+      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
+      return {
+        language: 'khmer',
+        provider: useKiriTTS ? 'kiritts' : 'gemini',
+        voice: useKiriTTS ? (ttsSettings?.kiritts_khmer_voice || 'Kiri') : 'Zephyr',
+        speed: useKiriTTS ? Number(ttsSettings?.kiritts_khmer_speed ?? 0.9) : 1.0,
+      };
+    }
+    return {
+      language,
+      provider: 'google_multispeaker',
+      voice: language === 'english' ? 'Kore' : 'Luna',
+      speed: language === 'english'
+        ? (settings?.voice_settings?.english?.speed || 1.0)
+        : (settings?.voice_settings?.chinese?.speed || 0.9),
+    };
+  };
+
+  const segmentsFor = (language: 'english' | 'khmer' | 'chinese') => {
+    if (!departure) return [];
+    return splitTemplate(script[language], placeholderValues(departure, language));
+  };
+
   // Check cache status for all languages (skip empty templates)
   const checkAllCacheStatus = async () => {
     if (!departure || !operatorId) return;
 
-    const scriptHash = generateScriptHash(script);
-    const khmerText = generateAnnouncementText(script.khmer, departure, 'khmer');
-    const englishText = generateAnnouncementText(script.english, departure, 'english');
-    const chineseText = generateAnnouncementText(script.chinese, departure, 'chinese');
+    const langs = ['khmer', 'english', 'chinese'] as const;
+    const results = await Promise.all(
+      langs.map(async (lang) => {
+        const segments = segmentsFor(lang);
+        if (segments.length === 0) return 'missing' as const;
+        const cached = await areSegmentsCached(segments, voiceCtx(lang));
+        return cached ? ('cached' as const) : ('missing' as const);
+      })
+    );
 
-    // Match Khmer cache key to the active TTS provider (see generateDirectKhmerTTS).
-    const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
-    const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
-    const khmerCacheKey = useKiriTTS
-      ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`
-      : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
-
-    // Only check cache for non-empty templates
-    const cacheChecks = await Promise.all([
-      khmerText.trim()
-        ? checkCacheStatus(khmerCacheKey)
-        : Promise.resolve('missing' as const),
-      englishText.trim()
-        ? checkCacheStatus(`english_direct_${operatorId}_${btoa(unescape(encodeURIComponent(englishText)))}_${scriptHash}`)
-        : Promise.resolve('missing' as const),
-      chineseText.trim()
-        ? checkCacheStatus(`chinese_direct_${operatorId}_${btoa(unescape(encodeURIComponent(chineseText)))}_${scriptHash}`)
-        : Promise.resolve('missing' as const)
-    ]);
-
-    setCacheStatus({
-      khmer: cacheChecks[0],
-      english: cacheChecks[1],
-      chinese: cacheChecks[2]
-    });
-
-    console.log('Cache status check:', { khmer: cacheChecks[0], english: cacheChecks[1], chinese: cacheChecks[2] });
+    setCacheStatus({ khmer: results[0], english: results[1], chinese: results[2] });
+    console.log('Cache status check (segmented):', { khmer: results[0], english: results[1], chinese: results[2] });
   };
 
-  // Generate Khmer TTS. Routes to KiriTTS when it is the primary provider,
-  // otherwise uses Gemini 2.5 Pro with native Unicode support.
-  const generateDirectKhmerTTS = async (khmerText: string, forceRefresh = false) => {
+  /**
+   * Build the playable clips for one language.
+   * The announcement is stitched from cached fragments; only wording that has
+   * never been spoken before reaches the TTS provider.
+   */
+  const generateLanguageAudio = async (
+    language: 'english' | 'khmer' | 'chinese',
+    forceRefresh = false
+  ): Promise<string[]> => {
+    if (!departure || !operatorId) return [];
+    const segments = segmentsFor(language);
+    if (segments.length === 0) return [];
+
+    setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
+
     try {
-      const useKiriTTS = ttsSettings?.khmer_provider === 'kiritts';
-      const provider = useKiriTTS ? 'kiritts' : 'gemini';
-      const kiriVoice = ttsSettings?.kiritts_khmer_voice || 'Kiri';
-      const scriptHash = generateScriptHash(script);
-      // Cache key includes the provider (+ voice) so switching providers never serves stale audio.
-      const cacheKey = useKiriTTS
-        ? `kiritts_khmer_${kiriVoice}_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`
-        : `gemini_khmer_${operatorId}_${btoa(unescape(encodeURIComponent(khmerText)))}_${scriptHash}`;
-
-      console.log(`🎵 Khmer TTS (${provider}) - Cache Key:`, cacheKey);
-
-      // Check cache first (unless forcing refresh)
-      if (!forceRefresh) {
-        setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
-        const cachedAudio = await audioCache.get(cacheKey);
-        if (cachedAudio) {
-          console.log(`✅ Using cached ${provider} Khmer audio (no TTS call)`);
-          setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-          void logTtsEvent({
-            ...logContext(),
-            language: 'khmer',
-            provider,
-            voice: useKiriTTS ? kiriVoice : 'Zephyr',
-            scriptText: khmerText,
-            scriptHash,
-            cacheKey,
-            cacheResult: 'client_hit',
-          });
-          return cachedAudio;
-        }
-        console.log("🔄 No cached Khmer audio found, generating new...");
-      } else {
-        console.log("🔄 Force refresh: Generating new Khmer TTS...");
-        setCacheStatus(prev => ({ ...prev, khmer: 'generating' }));
-      }
-
-      console.log(`Generating Khmer TTS with ${provider}...`);
-      console.log("Full Khmer text:", khmerText);
-      console.log("Khmer text length:", khmerText.length);
-
-      // Call the appropriate provider's edge function.
-      const { data, error } = useKiriTTS
-        ? await supabase.functions.invoke('kiritts-tts', {
-            body: { text: khmerText, operatorId, voice: kiriVoice, language: 'khmer', cacheKey, scriptHash, ...logContext() },
-          })
-        : await supabase.functions.invoke('gemini-khmer-tts', {
-            body: { text: khmerText, operatorId, cacheKey, scriptHash, ...logContext() },
-          });
-
-      if (error) {
-        console.error(`Error generating ${provider} Khmer TTS:`, error);
-        throw error;
-      }
-
-      // Prefer the CDN/storage URL (small payload, browser+CDN cached). Fall back to base64 if upload failed.
-      const audioValue = data?.audioUrl || data?.audioContent;
-      if (audioValue) {
-        // Cache the URL (or base64 fallback) — URLs are tiny so this stays cheap.
-        // Permanent cache: only a script/provider/voice change produces a new key.
-        await audioCache.set(cacheKey, audioValue);
-        setCacheStatus(prev => ({ ...prev, khmer: 'cached' }));
-        console.log(`✅ Generated Khmer TTS using ${provider} (${data.method || provider})`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
-        return audioValue;
-      }
-
-      throw new Error(`No audio content received from ${provider} Khmer TTS`);
-
-    } catch (error) {
-      console.error("Error in generateDirectKhmerTTS:", error);
-      setCacheStatus(prev => ({ ...prev, khmer: 'missing' }));
-      throw error;
-    }
-  };
-
-  // Generate direct TTS for other languages
-  const generateDirectTTS = async (text: string, language: 'english' | 'chinese', forceRefresh = false) => {
-    try {
-      const scriptHash = generateScriptHash(script);
-      const cacheKey = `${language}_direct_${operatorId}_${btoa(unescape(encodeURIComponent(text)))}_${scriptHash}`;
-      
-      console.log(`🎵 ${language.toUpperCase()} TTS - Cache Key:`, cacheKey);
-      
-      // Check cache first (unless forcing refresh)
-      if (!forceRefresh) {
-        setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
-        const cachedAudio = await audioCache.get(cacheKey);
-        if (cachedAudio) {
-          console.log(`✅ Using cached direct ${language} audio (no TTS call)`);
-          setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
-          void logTtsEvent({
-            ...logContext(),
-            language,
-            provider: 'google_multispeaker',
-            voice: language === 'english' ? 'Kore' : 'Luna',
-            scriptText: text,
-            scriptHash,
-            cacheKey,
-            cacheResult: 'client_hit',
-          });
-          return cachedAudio;
-        }
-        console.log(`🔄 No cached ${language} audio found, generating new...`);
-      } else {
-        console.log(`🔄 Force refresh: Generating new ${language} TTS...`);
-        setCacheStatus(prev => ({ ...prev, [language]: 'generating' }));
-      }
-
-      console.log(`Generating direct ${language} TTS...`);
-      
-      // Use existing multi-speaker function but with single language
-      const singleLanguageScript = `[Voice: ${language === 'english' ? 'Kore' : 'Luna'}] ${text}`;
-      
-      const { data, error } = await supabase.functions.invoke('gemini-multispeaker-tts', {
-        body: { 
-          script: singleLanguageScript,
+      const clips = await resolveSegmentsAudio(
+        segments,
+        {
           operatorId,
-          speechRate: language === 'english' ? 
-            (settings?.voice_settings?.english?.speed || 1.0) : 
-            (settings?.voice_settings?.chinese?.speed || 0.9),
-          pitchAdjustment: language === 'english' ? 
-            (settings?.voice_settings?.english?.pitch || 0) : 
-            (settings?.voice_settings?.chinese?.pitch || 0),
-          cacheKey,
-          scriptHash,
-          language,
-          voice: language === 'english' ? 'Kore' : 'Luna',
-          ...logContext(),
-        }
-      });
-
-      if (error) throw error;
-      const audioValue = data?.audioUrl || data?.audioContent;
-      if (!audioValue) throw new Error(`No audio received for ${language}`);
-
-      await audioCache.set(cacheKey, audioValue);
+          ctx: voiceCtx(language),
+          logContext: logContext(),
+          scriptHash: generateScriptHash(script),
+        },
+        forceRefresh
+      );
       setCacheStatus(prev => ({ ...prev, [language]: 'cached' }));
-      console.log(`✅ Generated ${language} TTS successfully`, data?.audioUrl ? '(via storage URL)' : '(base64 fallback)');
-      return audioValue;
+      return clips;
     } catch (error) {
-      console.error(`Error in generateDirectTTS for ${language}:`, error);
       setCacheStatus(prev => ({ ...prev, [language]: 'missing' }));
+      console.error(`Error generating ${language} announcement audio:`, error);
       throw error;
     }
   };
+
 
   const playAnnouncement = async () => {
     if (!departure || isPlaying || !settings?.voice_enabled || !operatorId) return;
