@@ -188,22 +188,31 @@ export default function AnnouncementSystem({
     return splitTemplate(script[language], placeholderValues(departure, language));
   };
 
-  // Check cache status for all languages (skip empty templates)
+  // Languages the operator has switched on. Disabled ones are never played
+  // and never sent to the TTS provider.
+  const enabledLanguages = (['khmer', 'english', 'chinese'] as const).filter(
+    (lang) => settings?.voice_settings?.[lang]?.enabled !== false
+  );
+
+  // Check cache status for enabled languages (skip empty templates)
   const checkAllCacheStatus = async () => {
     if (!departure || !operatorId) return;
 
-    const langs = ['khmer', 'english', 'chinese'] as const;
-    const results = await Promise.all(
-      langs.map(async (lang) => {
+    const results: Record<string, 'cached' | 'missing'> = {};
+    await Promise.all(
+      enabledLanguages.map(async (lang) => {
         const segments = segmentsFor(lang);
-        if (segments.length === 0) return 'missing' as const;
+        if (segments.length === 0) {
+          results[lang] = 'missing';
+          return;
+        }
         const cached = await areSegmentsCached(segments, voiceCtx(lang));
-        return cached ? ('cached' as const) : ('missing' as const);
+        results[lang] = cached ? 'cached' : 'missing';
       })
     );
 
-    setCacheStatus({ khmer: results[0], english: results[1], chinese: results[2] });
-    console.log('Cache status check (segmented):', { khmer: results[0], english: results[1], chinese: results[2] });
+    setCacheStatus(prev => ({ ...prev, ...results }));
+    console.log('Cache status check (segmented):', results);
   };
 
   /**
