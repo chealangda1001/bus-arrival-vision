@@ -152,6 +152,33 @@ export default function TtsProviderSettings() {
           </div>
         )}
 
+        {provider === 'kiritts' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Khmer speaking speed</Label>
+              <Badge variant="outline">{khmerSpeed.toFixed(2)}x</Badge>
+            </div>
+            <Slider
+              min={0.7}
+              max={1.2}
+              step={0.05}
+              value={[khmerSpeed]}
+              onValueChange={(v) => setKhmerSpeed(Number(v[0].toFixed(2)))}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Slower (0.70x)</span>
+              <span>Normal (1.00x)</span>
+              <span>Faster (1.20x)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Lower this if listeners say the Khmer voice sounds rushed. Changing the speed regenerates the
+              audio once, then it is cached again.
+            </p>
+          </div>
+        )}
+
+
+
         <Button onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
           Save
