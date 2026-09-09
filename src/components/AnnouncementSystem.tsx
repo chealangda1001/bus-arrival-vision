@@ -392,7 +392,7 @@ export default function AnnouncementSystem({
       setIsPlaying(true);
       setIsGenerating(true);
 
-      for (const lang of ['khmer', 'english', 'chinese'] as const) {
+      for (const lang of enabledLanguages) {
         if (segmentsFor(lang).length === 0) {
           console.log(`⏭️ Skipping ${lang} regeneration - empty template`);
           continue;
