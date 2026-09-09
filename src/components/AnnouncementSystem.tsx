@@ -265,10 +265,11 @@ export default function AnnouncementSystem({
       
       console.log("Generated texts:", { khmerText, englishText, chineseText });
 
-      // Check for uploaded MP3 files first
-      const hasUploadedKhmer = departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
-      const hasUploadedEnglish = departure.english_audio_url && typeof departure.english_audio_url === 'string';
-      const hasUploadedChinese = departure.chinese_audio_url && typeof departure.chinese_audio_url === 'string';
+      // Check for uploaded MP3 files first (disabled languages are skipped)
+      const isOn = (lang: 'khmer' | 'english' | 'chinese') => enabledLanguages.includes(lang);
+      const hasUploadedKhmer = isOn('khmer') && departure.khmer_audio_url && typeof departure.khmer_audio_url === 'string';
+      const hasUploadedEnglish = isOn('english') && departure.english_audio_url && typeof departure.english_audio_url === 'string';
+      const hasUploadedChinese = isOn('chinese') && departure.chinese_audio_url && typeof departure.chinese_audio_url === 'string';
       
       // Play in sequence: Khmer, English, Chinese
       const playUploadedAudio = async (audioUrl: string, language: 'khmer' | 'english' | 'chinese') => {
