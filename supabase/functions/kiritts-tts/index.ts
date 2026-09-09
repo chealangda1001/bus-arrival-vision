@@ -4,6 +4,9 @@ import { logTtsRequest } from '../_shared/ttsLog.ts'
 
 // ---- Shared TTS storage helpers (serve audio from a public bucket to cut egress) ----
 const TTS_BUCKET = 'tts-audio';
+// Official KiriTTS speech endpoint (OpenAI-compatible). model 'kiritts' = TTS ('kiristt' is STT).
+const KIRITTS_SPEECH_URL = 'https://api.kiritts.com/v1/audio/speech';
+const KIRITTS_MODEL = 'kiritts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +37,6 @@ async function uploadAudioToStorage(path: string, bytes: Uint8Array, contentType
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
-    await supabase.storage.createBucket(TTS_BUCKET, { public: true }).catch(() => {});
     const { error } = await supabase.storage.from(TTS_BUCKET).upload(path, bytes, {
       contentType,
       upsert: true,
@@ -61,10 +63,31 @@ function uint8ArrayToBase64(uint8Array: Uint8Array): string {
   return btoa(result);
 }
 
-interface KiriTTSRequest {
+// Recent failures per cache key, so a retry storm cannot re-bill the provider.
+const recentFailures = new Map<string, number>();
+const FAILURE_COOLDOWN_MS = 60_000;
+
+function isCoolingDown(key: string): boolean {
+  const at = recentFailures.get(key);
+  if (!at) return false;
+  if (Date.now() - at > FAILURE_COOLDOWN_MS) {
+    recentFailures.delete(key);
+    return false;
+  }
+  return true;
+}
+
+interface SegmentRequest {
   text: string;
+  cacheKey: string;
+}
+
+interface KiriTTSRequest {
+  text?: string;
+  segments?: SegmentRequest[];
   operatorId: string;
   voice?: string;
+  speed?: number;
   language?: string; // 'khmer' | 'english' | 'chinese'
   cacheKey?: string;
   // Optional logging context
@@ -75,6 +98,30 @@ interface KiriTTSRequest {
   departureTime?: string;
   announcementType?: string;
   scriptHash?: string;
+}
+
+async function callKiriTTS(apiKey: string, text: string, voice: string, speed: number): Promise<Uint8Array> {
+  const res = await fetch(KIRITTS_SPEECH_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: KIRITTS_MODEL,
+      voice,
+      input: text,
+      response_format: 'mp3',
+      speed,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`KiriTTS API error: ${res.status} - ${body || '(empty body)'}`);
+  }
+
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 serve(async (req) => {
@@ -88,8 +135,9 @@ serve(async (req) => {
   try {
     const request: KiriTTSRequest = await req.json();
 
-    if (!request.text) throw new Error('Text parameter is required');
     if (!request.operatorId) throw new Error('Operator ID is required');
+    const hasSegments = Array.isArray(request.segments) && request.segments.length > 0;
+    if (!request.text && !hasSegments) throw new Error('Text parameter is required');
 
     const rawApiKey = Deno.env.get('KIRITTS_API_KEY');
     if (!rawApiKey) throw new Error('KIRITTS_API_KEY not configured');
@@ -97,7 +145,74 @@ serve(async (req) => {
 
     const voice = request.voice || 'Kiri';
     const language = request.language || 'khmer';
-    const cacheKey = request.cacheKey || `kiritts_${language}_${voice}_${btoa(unescape(encodeURIComponent(request.text)))}_${request.operatorId}`;
+    // KiriTTS accepts 0.7 - 1.2 only.
+    const speed = Math.min(1.2, Math.max(0.7, Number(request.speed) || 1.0));
+
+    // ---- Batch mode: fill several announcement fragments in one round trip ----
+    if (hasSegments) {
+      const results: Array<{ cacheKey: string; audioUrl?: string; audioContent?: string; cached: boolean; error?: string }> = [];
+
+      for (const segment of request.segments!) {
+        const segStarted = Date.now();
+        const storagePath = `${request.operatorId}/kiritts_${language}_${await hashKey(segment.cacheKey)}.mp3`;
+        const segLog = {
+          provider: 'kiritts',
+          operatorId: request.operatorId,
+          branchId: request.branchId,
+          departureId: request.departureId,
+          destination: request.destination,
+          plateNumber: request.plateNumber,
+          departureTime: request.departureTime,
+          announcementType: request.announcementType,
+          language,
+          voice,
+          scriptText: segment.text,
+          scriptHash: request.scriptHash,
+          cacheKey: segment.cacheKey,
+          storagePath,
+        };
+
+        const cachedUrl = await findCachedAudioUrl(storagePath);
+        if (cachedUrl) {
+          await logTtsRequest(req, { ...segLog, cacheResult: 'storage_hit', durationMs: Date.now() - segStarted });
+          results.push({ cacheKey: segment.cacheKey, audioUrl: cachedUrl, cached: true });
+          continue;
+        }
+
+        if (isCoolingDown(segment.cacheKey)) {
+          results.push({ cacheKey: segment.cacheKey, cached: false, error: 'Recently failed; not retrying yet.' });
+          continue;
+        }
+
+        try {
+          const bytes = await callKiriTTS(apiKey, segment.text, voice, speed);
+          const url = await uploadAudioToStorage(storagePath, bytes, 'audio/mpeg');
+          await logTtsRequest(req, { ...segLog, cacheResult: 'generated', durationMs: Date.now() - segStarted });
+          results.push({
+            cacheKey: segment.cacheKey,
+            cached: false,
+            ...(url ? { audioUrl: url } : { audioContent: uint8ArrayToBase64(bytes) }),
+          });
+        } catch (segErr) {
+          recentFailures.set(segment.cacheKey, Date.now());
+          await logTtsRequest(req, {
+            ...segLog,
+            cacheResult: 'error',
+            errorMessage: (segErr as Error).message,
+            durationMs: Date.now() - segStarted,
+          });
+          results.push({ cacheKey: segment.cacheKey, cached: false, error: (segErr as Error).message });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, method: 'kiritts', language, voice, speed, results }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ---- Single-text mode ----
+    const text = request.text!;
+    const cacheKey = request.cacheKey || `kiritts_${language}_${voice}_${speed}_${await hashKey(text)}_${request.operatorId}`;
     const storagePath = `${request.operatorId}/kiritts_${language}_${await hashKey(cacheKey)}.mp3`;
 
     logBase = {
@@ -111,7 +226,7 @@ serve(async (req) => {
       announcementType: request.announcementType,
       language,
       voice,
-      scriptText: request.text,
+      scriptText: text,
       scriptHash: request.scriptHash,
       cacheKey,
       storagePath,
@@ -130,48 +245,26 @@ serve(async (req) => {
         success: true,
         language,
         voice,
-        textLength: request.text.length,
+        speed,
+        textLength: text.length,
         timestamp: new Date().toISOString(),
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-
-    // 2) Generate via KiriTTS (OpenAI-compatible speech endpoint), returns audio/mpeg.
-    console.log(`Generating KiriTTS ${language} audio with voice ${voice}, length ${request.text.length}`);
-    const speechEndpoints = [
-      'https://api.kiritts.com/v1/audio/speech',
-      'https://www.kiritts.com/api/v1/audio/speech',
-      'https://api.kiritts.com/api/v1/audio/speech',
-    ];
-
-    let ttsResponse: Response | null = null;
-    let lastErrorText = '';
-
-    for (const endpoint of speechEndpoints) {
-      ttsResponse = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'kiritts',
-          voice,
-          input: request.text,
-        }),
-      });
-
-      if (ttsResponse.ok) break;
-      lastErrorText = await ttsResponse.text().catch(() => '');
-      console.warn(`KiriTTS speech endpoint failed: ${endpoint} (${ttsResponse.status}) - ${lastErrorText}`);
+    if (isCoolingDown(cacheKey)) {
+      throw new Error('KiriTTS recently failed for this text; not retrying yet.');
     }
 
-    if (!ttsResponse || !ttsResponse.ok) {
-      console.error(`KiriTTS API error: ${ttsResponse?.status || 'no response'} - ${lastErrorText}`);
-      throw new Error(`KiriTTS API error: ${ttsResponse?.status || 'no response'} - ${lastErrorText}`);
+    // 2) Generate via KiriTTS.
+    console.log(`Generating KiriTTS ${language} audio with voice ${voice}, speed ${speed}, length ${text.length}`);
+    let audioBytes: Uint8Array;
+    try {
+      audioBytes = await callKiriTTS(apiKey, text, voice, speed);
+    } catch (genErr) {
+      recentFailures.set(cacheKey, Date.now());
+      throw genErr;
     }
 
-    const audioBytes = new Uint8Array(await ttsResponse.arrayBuffer());
     const audioUrl = await uploadAudioToStorage(storagePath, audioBytes, 'audio/mpeg');
 
     const response = {
@@ -184,7 +277,8 @@ serve(async (req) => {
       success: true,
       language,
       voice,
-      textLength: request.text.length,
+      speed,
+      textLength: text.length,
       timestamp: new Date().toISOString(),
     };
 
