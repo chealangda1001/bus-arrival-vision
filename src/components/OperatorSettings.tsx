@@ -89,7 +89,22 @@ export default function OperatorSettings({ operatorId }: OperatorSettingsProps) 
 
   const handleVoiceSettingUpdate = (language: 'khmer' | 'english' | 'chinese', field: keyof VoiceSettings, value: any) => {
     if (!settings) return;
-    
+
+    // At least one language must stay switched on.
+    if (field === 'enabled' && value === false) {
+      const stillOn = (['khmer', 'english', 'chinese'] as const).filter(
+        (l) => l !== language && settings.voice_settings[l]?.enabled !== false
+      );
+      if (stillOn.length === 0) {
+        toast({
+          title: "At least one language required",
+          description: "Keep one language switched on for announcements.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const updatedVoiceSettings = {
       ...settings.voice_settings,
       [language]: {
