@@ -57,7 +57,8 @@ export default function AnnouncementSystem({
     english: 'cached' | 'expired' | 'missing' | 'generating';
     chinese: 'cached' | 'expired' | 'missing' | 'generating';
   }>({ khmer: 'missing', english: 'missing', chinese: 'missing' });
-  const audioQueueRef = useRef<AudioQueue>(new AudioQueue());
+  // 120ms of silence between stitched fragments keeps the sentence natural.
+  const audioQueueRef = useRef<AudioQueue>(new AudioQueue(120));
   const { toast } = useToast();
 
   // Attribution passed to the TTS log so every call can be traced to a trip.
