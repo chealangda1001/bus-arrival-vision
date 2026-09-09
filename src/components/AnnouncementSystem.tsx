@@ -509,7 +509,7 @@ export default function AnnouncementSystem({
       <div className="space-y-3">
         {/* Audio Source Indicators with Cache Status */}
         <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-4">
-          {(['khmer', 'english', 'chinese'] as const).map((lang) => {
+          {enabledLanguages.map((lang, langIndex) => {
             const audioUrlKey = `${lang}_audio_url` as keyof typeof departure;
             const hasCustomAudio = departure[audioUrlKey];
             const langCacheStatus = cacheStatus[lang];
