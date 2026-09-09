@@ -36,7 +36,11 @@ export const useSystemTtsSettings = () => {
 
       if (error) throw error;
       if (data) {
-        setSettings(data as SystemTtsSettings);
+        setSettings({
+          ...(data as SystemTtsSettings),
+          kiritts_khmer_speed: Number((data as any).kiritts_khmer_speed ?? 0.9),
+        });
+
       } else {
         setSettings({ id: '', ...DEFAULT_SETTINGS });
       }

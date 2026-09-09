@@ -21,6 +21,7 @@ export default function TtsProviderSettings() {
   const { toast } = useToast();
   const [provider, setProvider] = useState<'gemini' | 'kiritts'>('gemini');
   const [khmerVoice, setKhmerVoice] = useState('Kiri');
+  const [khmerSpeed, setKhmerSpeed] = useState(0.9);
   const [voices, setVoices] = useState<KiriVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,8 +30,10 @@ export default function TtsProviderSettings() {
     if (settings) {
       setProvider(settings.khmer_provider);
       setKhmerVoice(settings.kiritts_khmer_voice || 'Kiri');
+      setKhmerSpeed(Number(settings.kiritts_khmer_speed ?? 0.9));
     }
   }, [settings]);
+
 
   const loadVoices = async () => {
     setLoadingVoices(true);
