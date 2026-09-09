@@ -55,6 +55,8 @@ Add to the TTS Usage screen: new generations per branch, top 20 most-generated t
 - `system_tts_settings`: add `kiritts_khmer_speed numeric not null default 0.9` (migration).
 - `useSystemTtsSettings` + `TtsProviderSettings.tsx`: expose and persist the speed value.
 - `kiritts-tts` edge function: accept `speed`, pass it in the speech request body, include it in `cacheKey`/`storagePath` hash so old and new speeds don't collide; verify endpoint/model; short-circuit repeated failures.
-- Announcement script builder: make the time/countdown token stable so the same scheduled departure yields a byte-identical script.
+- Script builder: tokenise the template into an ordered list of segments (`static` text vs `var:<name>=<value>`); each segment hashes to its own cache key `kiritts_<lang>_<voice>_<speed>_<sha256(text)>` — operator-independent so fragments are shared globally.
+- Playback: resolve every segment from IndexedDB, then storage, then generate; play sequentially via a queued `Audio` chain (or Web Audio concat) with ~120ms silence between segments. Single-paragraph generation kept as fallback.
+- `kiritts-tts`: accept a `segments[]` batch so one round trip can fill several missing fragments; log each fragment in `tts_request_logs` with its own `script_hash`.
 - `TtsUsageLogs.tsx`: add branch and per-trip generation aggregates over `tts_request_logs`.
 - No change to the permanent client cache (no TTL, per existing rule).
