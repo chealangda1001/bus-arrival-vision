@@ -69,6 +69,7 @@ export default function TtsProviderSettings() {
     const ok = await updateSettings({
       khmer_provider: provider,
       kiritts_khmer_voice: khmerVoice,
+      kiritts_khmer_speed: khmerSpeed,
     });
     setSaving(false);
     toast({
