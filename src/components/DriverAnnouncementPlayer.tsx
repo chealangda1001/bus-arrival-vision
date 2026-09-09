@@ -47,7 +47,7 @@ export default function DriverAnnouncementPlayer({
   const [currentLang, setCurrentLang] = useState<Language | null>(null);
   const [singlePlayingLang, setSinglePlayingLang] = useState<Language | null>(null);
   const [singleGenLang, setSingleGenLang] = useState<Language | null>(null);
-  const audioQueueRef = useRef<AudioQueue>(new AudioQueue());
+  const audioQueueRef = useRef<AudioQueue>(new AudioQueue(120));
   const abortRef = useRef(false);
   const { toast } = useToast();
 
