@@ -686,6 +686,57 @@ export type Database = {
         }
         Relationships: []
       }
+      tts_clips: {
+        Row: {
+          cache_key: string
+          char_count: number
+          created_at: string
+          id: string
+          language: string
+          last_used_at: string | null
+          provider: string
+          reuse_count: number
+          segment_kind: string
+          speed: number
+          storage_path: string | null
+          text: string
+          updated_at: string
+          voice: string | null
+        }
+        Insert: {
+          cache_key: string
+          char_count?: number
+          created_at?: string
+          id?: string
+          language: string
+          last_used_at?: string | null
+          provider: string
+          reuse_count?: number
+          segment_kind?: string
+          speed?: number
+          storage_path?: string | null
+          text: string
+          updated_at?: string
+          voice?: string | null
+        }
+        Update: {
+          cache_key?: string
+          char_count?: number
+          created_at?: string
+          id?: string
+          language?: string
+          last_used_at?: string | null
+          provider?: string
+          reuse_count?: number
+          segment_kind?: string
+          speed?: number
+          storage_path?: string | null
+          text?: string
+          updated_at?: string
+          voice?: string | null
+        }
+        Relationships: []
+      }
       tts_request_logs: {
         Row: {
           announcement_type: string | null
