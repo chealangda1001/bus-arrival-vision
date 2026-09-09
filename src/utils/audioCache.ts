@@ -210,10 +210,17 @@ export class AudioQueue {
     const audio = this.queue[this.currentIndex];
     
     return new Promise((resolve) => {
-      audio.onended = () => {
+      const advance = () => {
         this.currentIndex++;
-        this.playNext().then(resolve);
+        if (this.gapMs > 0 && this.currentIndex < this.queue.length) {
+          setTimeout(() => { this.playNext().then(resolve); }, this.gapMs);
+        } else {
+          this.playNext().then(resolve);
+        }
       };
+
+      audio.onended = () => advance();
+
       
       audio.onerror = (error) => {
         console.error('Audio playback error:', error);
