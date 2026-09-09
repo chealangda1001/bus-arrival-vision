@@ -9,15 +9,33 @@ const DEFAULT_ANNOUNCEMENT_SCRIPTS = {
   chinese: "各位旅客请注意：前往 {destination} 的乘客请前往登车口，我们即将出发。本次行程将前往 {destination}，全程大约 {trip_duration} 小时。途中我们会停靠一次，休息 {break_duration} 分钟，方便大家使用洗手间或购买一些小吃。预计 {trip_duration} 小时后抵达 {destination}。祝您旅途平安愉快！感谢您选择 {operator_name}！"
 };
 
+const DEFAULT_VOICE_SETTINGS = {
+  khmer: { voice: 'female', voice_model: 'Zephyr', speed: 0.9, pitch: 0.0, enabled: true },
+  english: { voice: 'male', voice_model: 'Kore', speed: 1.0, pitch: 0.0, enabled: true },
+  chinese: { voice: 'female', voice_model: 'Luna', speed: 0.9, pitch: 0.0, enabled: true },
+} as const;
+
 // Normalize settings to ensure all announcement scripts have valid content
 const normalizeSettings = (data: any): any => {
   const scripts = data.announcement_scripts || {};
+  const voice = data.voice_settings || {};
+  const langVoice = (lang: 'khmer' | 'english' | 'chinese') => ({
+    ...DEFAULT_VOICE_SETTINGS[lang],
+    ...(voice[lang] || {}),
+    // Languages are enabled unless explicitly switched off by the operator.
+    enabled: voice[lang]?.enabled !== false,
+  });
   return {
     ...data,
     announcement_scripts: {
       english: scripts.english?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.english,
       khmer: scripts.khmer?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.khmer,
       chinese: scripts.chinese?.trim() || DEFAULT_ANNOUNCEMENT_SCRIPTS.chinese,
+    },
+    voice_settings: {
+      khmer: langVoice('khmer'),
+      english: langVoice('english'),
+      chinese: langVoice('chinese'),
     }
   };
 };
@@ -25,6 +43,8 @@ const normalizeSettings = (data: any): any => {
 export interface VoiceSettings {
   voice: 'male' | 'female';
   voice_model?: 'Zephyr' | 'Kore' | 'Luna';
+  /** When false, this language is paused: never played, never sent to TTS. */
+  enabled?: boolean;
   speed: number;
   pitch: number;
 }
